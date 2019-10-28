@@ -99,11 +99,16 @@ static inline void hif_release_ramdump_mem(unsigned long *address)
 #ifndef TARGET_DUMP_FOR_NON_QC_PLATFORM
 static inline void *hif_get_virt_ramdump_mem(unsigned long *size)
 {
+#if 0
 	void *addr;
 	addr = ioremap(RAMDUMP_ADDR, RAMDUMP_SIZE);
 	if (addr)
 		*size = RAMDUMP_SIZE;
 	return addr;
+#else
+	/* No support for RAM dump */
+	return NULL;
+#endif
 }
 
 static inline void hif_release_ramdump_mem(unsigned long *address)
