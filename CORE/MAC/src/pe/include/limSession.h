@@ -531,6 +531,9 @@ typedef struct sPESession           // Added to Support BT-AMP
 #endif
     uint8_t deauthmsgcnt;
     uint8_t disassocmsgcnt;
+    bool sae_pmk_cached;
+    /* previous auth frame's sequence number */
+    uint16_t prev_auth_seq_num;
 } tPESession, *tpPESession;
 
 /*-------------------------------------------------------------------------

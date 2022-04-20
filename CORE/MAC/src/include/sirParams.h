@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -211,6 +211,19 @@ typedef struct sSirMbMsgP2p
     tANI_U32 data[1];
 } tSirMbMsgP2p, *tpSirMbMsgP2p;
 
+/**
+ * struct sir_mgmt_msg - Structure used to send auth frame from CSR to LIM
+ * @type: Message type
+ * @msg_len: Message length
+ * @session_id: session id
+ * @data: Pointer to data tobe transmitted
+ */
+struct sir_mgmt_msg {
+	uint16_t type;
+	uint16_t msg_len;
+	uint8_t session_id;
+	uint8_t *data;
+};
 
 /* ******************************************* *
  *                                             *
@@ -287,7 +300,6 @@ typedef struct sSirMbMsgP2p
 #define SIR_HAL_UPDATE_STARATEINFO_RSP     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 46)
 
 #define SIR_HAL_UPDATE_BEACON_IND          (SIR_HAL_ITC_MSG_TYPES_BEGIN + 47)
-#define SIR_HAL_UPDATE_CF_IND              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 48)
 #define SIR_HAL_CHNL_SWITCH_REQ            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 49)
 #define SIR_HAL_ADD_TS_REQ                 (SIR_HAL_ITC_MSG_TYPES_BEGIN + 50)
 #define SIR_HAL_DEL_TS_REQ                 (SIR_HAL_ITC_MSG_TYPES_BEGIN + 51)
@@ -810,6 +822,13 @@ typedef struct sSirMbMsgP2p
 
 #define SIR_HAL_THERM_THROT_SET_CONF_CMD    (SIR_HAL_ITC_MSG_TYPES_BEGIN + 383)
 #define SIR_HAL_THERM_MGMT_CMD              (SIR_HAL_ITC_MSG_TYPES_BEGIN + 384)
+#define SIR_HAL_PEER_CFR_CAPTURE_CONF_CMD   (SIR_HAL_ITC_MSG_TYPES_BEGIN + 385)
+#define SIR_HAL_PERIODIC_CFR_ENABLE_CMD     (SIR_HAL_ITC_MSG_TYPES_BEGIN + 386)
+#define SIR_HAL_SET_HPCS_PULSE_PARMAS       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 387)
+#ifdef AUDIO_MULTICAST_AGGR_SUPPORT
+#define SIR_HAL_ADD_MULTICAST_GROUP       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 388)
+#define SIR_HAL_SET_MULTICAST_RATE            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 389)
+#endif
 #define SIR_HAL_MSG_TYPES_END               (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 
 // CFG message types
@@ -898,6 +917,7 @@ typedef struct sSirMbMsgP2p
 
 #define SIR_LIM_CONVERT_ACTIVE_CHANNEL_TO_PASSIVE (SIR_LIM_TIMEOUT_MSG_START + 0x2C)
 #define SIR_LIM_AUTH_RETRY_TIMEOUT            (SIR_LIM_TIMEOUT_MSG_START + 0x2D)
+#define SIR_LIM_AUTH_SAE_TIMEOUT     (SIR_LIM_TIMEOUT_MSG_START + 0x2E)
 
 #define SIR_LIM_MSG_TYPES_END            (SIR_LIM_MSG_TYPES_BEGIN+0xFF)
 

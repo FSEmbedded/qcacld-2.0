@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2018 The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2019 The Linux Foundation. All rights reserved.
  *
  * Previously licensed under the ISC license by Qualcomm Atheros, Inc.
  *
@@ -2428,6 +2428,20 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_MAX_HT_MCS_FOR_TX_DATA_MIN,
                  CFG_MAX_HT_MCS_FOR_TX_DATA_MAX),
 
+   REG_VARIABLE(CFG_MASK_FOR_TX_LEGACY_RATE, WLAN_PARAM_HexInteger,
+                 hdd_config_t, mask_tx_legacy_rate,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_MASK_FOR_TX_LEGACY_RATE_DEFAULT,
+                 CFG_MASK_FOR_TX_LEGACY_RATE_MIN,
+                 CFG_MASK_FOR_TX_LEGACY_RATE_MAX),
+
+   REG_VARIABLE(CFG_MASK_FOR_TX_HT_RATE, WLAN_PARAM_HexInteger,
+                 hdd_config_t, mask_tx_ht_rate,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_MASK_FOR_TX_HT_RATE_DEFAULT,
+                 CFG_MASK_FOR_TX_HT_RATE_MIN,
+                 CFG_MASK_FOR_TX_HT_RATE_MAX),
+
    REG_VARIABLE(CFG_SAP_GET_PEER_INFO, WLAN_PARAM_Integer,
                  hdd_config_t, sap_get_peer_info,
                  VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -2954,6 +2968,22 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_POWERSAVE_OFFLOAD_MIN,
                  CFG_POWERSAVE_OFFLOAD_MAX ),
 
+#ifdef CONFIG_GPIO_OOB
+   REG_VARIABLE(CFG_ENABLE_OOB_GPIO_FLAG_NAME, WLAN_PARAM_Integer,
+                hdd_config_t, oob_gpio_flag,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK,
+                CFG_ENABLE_OOB_GPIO_FLAG_DEFAULT,
+                CFG_ENABLE_OOB_GPIO_FLAG_MIN,
+                CFG_ENABLE_OOB_GPIO_FLAG_MAX),
+
+   REG_VARIABLE(CFG_ENABLE_OOB_GPIO_NUM_NAME, WLAN_PARAM_Integer,
+                hdd_config_t, oob_gpio_num,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK,
+                CFG_ENABLE_OOB_GPIO_NUM_DEFAULT,
+                CFG_ENABLE_OOB_GPIO_NUM_MIN,
+                CFG_ENABLE_OOB_GPIO_NUM_MAX),
+#endif
+
    REG_VARIABLE( CFG_ENABLE_FW_UART_PRINT_NAME, WLAN_PARAM_Integer,
                  hdd_config_t, enablefwprint,
                  VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -2968,12 +2998,28 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_ENABLE_FW_LOG_DISABLE,
                  CFG_ENABLE_FW_LOG_ENABLE),
 
+   REG_VARIABLE( CFG_ENABLE_FAST_FW_DUMP_NAME, WLAN_PARAM_Integer,
+                 hdd_config_t, fastfwdump,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_ENABLE_FAST_FW_DUMP_DEFAULT,
+                 CFG_ENABLE_FAST_FW_DUMP_DISABLE,
+                 CFG_ENABLE_FAST_FW_DUMP_ENABLE),
+
    REG_VARIABLE( CFG_ENABLE_FW_SELF_RECOVERY_NAME, WLAN_PARAM_Integer,
                  hdd_config_t, enableFwSelfRecovery,
                  VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
                  CFG_ENABLE_FW_SELF_RECOVERY_DEFAULT,
                  CFG_ENABLE_FW_SELF_RECOVERY_DISABLE,
                  CFG_ENABLE_FW_SELF_RECOVERY_ENABLE),
+
+#ifdef FEATURE_USB_WARM_RESET
+   REG_VARIABLE( CFG_ENABLE_USB_WARM_RESET_NAME, WLAN_PARAM_Integer,
+                 hdd_config_t, enable_usb_warm_reset,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_ENABLE_USB_WARM_RESET_DEFAULT,
+                 CFG_ENABLE_USB_WARM_RESET_DISABLE,
+                 CFG_ENABLE_USB_WARM_RESET_ENABLE),
+#endif
 
 #ifdef IPA_OFFLOAD
    REG_VARIABLE( CFG_IPA_OFFLOAD_CONFIG_NAME, WLAN_PARAM_HexInteger,
@@ -3400,6 +3446,13 @@ REG_TABLE_ENTRY g_registry_table[] =
                  CFG_THERMAL_SAMPLE_RATE_MIN,
                  CFG_THERMAL_SAMPLE_RATE_MAX),
 #endif /* FEATURE_WLAN_THERMAL_SHUTDOWN */
+
+   REG_VARIABLE( CFG_REMOVE_TIME_STAMP_SYNC_CMD_NAME, WLAN_PARAM_Integer,
+                 hdd_config_t, remove_time_stamp_sync_cmd,
+                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                 CFG_REMOVE_TIME_STAMP_SYNC_CMD_DEFAULT,
+                 CFG_REMOVE_TIME_STAMP_SYNC_CMD_MIN,
+                 CFG_REMOVE_TIME_STAMP_SYNC_CMD_MAX),
 
    /* Runtime DPD Recaliberation INI Parameters BEGINS */
    REG_VARIABLE( CFG_DPD_RECALIB_ENABLE_NAME, WLAN_PARAM_Integer,
@@ -4527,6 +4580,24 @@ REG_TABLE_ENTRY g_registry_table[] =
                 CFG_BTC_WLAN_COEX_TX_POWER_MIN,
                 CFG_BTC_WLAN_COEX_TX_POWER_MAX),
 
+#ifdef WMI_COEX_BTC_DUTYCYCLE
+   REG_VARIABLE(CFG_COEX_PAUSE_NAME,
+                WLAN_PARAM_Integer,
+                hdd_config_t, coex_btc_PauseDuration,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                CFG_COEX_PAUSE_DEFAULT,
+                CFG_COEX_PAUSE_MIN,
+                CFG_COEX_PAUSE_MAX),
+
+   REG_VARIABLE(CFG_COEX_UNPAUSE_NAME,
+                WLAN_PARAM_Integer,
+                hdd_config_t, coex_btc_UnPauseDuration,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                CFG_COEX_UNPAUSE_DEFAULT,
+                CFG_COEX_UNPAUSE_MIN,
+                CFG_COEX_UNPAUSE_MAX),
+#endif
+
    REG_VARIABLE(CFG_INFORM_BSS_RSSI_RAW_NAME, WLAN_PARAM_Integer,
                 hdd_config_t, inform_bss_rssi_raw,
                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -4534,6 +4605,20 @@ REG_TABLE_ENTRY g_registry_table[] =
                 CFG_INFORM_BSS_RSSI_RAW_MIN,
                 CFG_INFORM_BSS_RSSI_RAW_MAX),
 #ifdef WLAN_FEATURE_TSF
+   REG_VARIABLE(CFG_SET_TSF_GPIO_PIN_HOST_NAME, WLAN_PARAM_Integer,
+                hdd_config_t, tsf_gpio_pin_host,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                CFG_SET_TSF_GPIO_PIN_HOST_DEFAULT,
+                CFG_SET_TSF_GPIO_PIN_HOST_MIN,
+                CFG_SET_TSF_GPIO_PIN_HOST_MAX),
+
+   REG_VARIABLE(CFG_GET_TSF_BY_REGISTER_NAME, WLAN_PARAM_Integer,
+                hdd_config_t, tsf_by_register,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                CFG_GET_TSF_BY_REGISTER_DEFAULT,
+                CFG_GET_TSF_BY_REGISTER_MIN,
+                CFG_GET_TSF_BY_REGISTER_MAX),
+
    REG_VARIABLE(CFG_SET_TSF_GPIO_PIN_NAME, WLAN_PARAM_Integer,
                 hdd_config_t, tsf_gpio_pin,
                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
@@ -4708,6 +4793,13 @@ REG_TABLE_ENTRY g_registry_table[] =
                 CFG_WOW_PULSE_REPEAT_COUNT_DEFAULT,
                 CFG_WOW_PULSE_REPEAT_COUNT_MIN,
                 CFG_WOW_PULSE_REPEAT_COUNT_MAX),
+
+   REG_VARIABLE(CFG_WOW_PULSE_INIT_STATE_NAME, WLAN_PARAM_Integer,
+                hdd_config_t, wow_pulse_init_state,
+                VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+                CFG_WOW_PULSE_INIT_STATE_DEFAULT,
+                CFG_WOW_PULSE_INIT_STATE_MIN,
+                CFG_WOW_PULSE_INIT_STATE_MAX),
 #endif
 
    REG_VARIABLE(CFG_MIB_STATS_ENABLED_NAME, WLAN_PARAM_Integer,
@@ -5119,7 +5211,7 @@ REG_TABLE_ENTRY g_registry_table[] =
                 CFG_ENABLE_5G_BAND_PREF_MIN,
                 CFG_ENABLE_5G_BAND_PREF_MAX),
 
-   REG_VARIABLE(CFG_5G_RSSI_BOOST_THRESHOLD_NAME, WLAN_PARAM_Integer,
+   REG_VARIABLE(CFG_5G_RSSI_BOOST_THRESHOLD_NAME, WLAN_PARAM_SignedInteger,
                 hdd_config_t, rssi_boost_threshold_5g,
                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
                 CFG_5G_RSSI_BOOST_THRESHOLD_DEFAULT,
@@ -5140,7 +5232,7 @@ REG_TABLE_ENTRY g_registry_table[] =
                 CFG_5G_MAX_RSSI_BOOST_MIN,
                 CFG_5G_MAX_RSSI_BOOST_MAX),
 
-   REG_VARIABLE(CFG_5G_RSSI_PENALIZE_THRESHOLD_NAME, WLAN_PARAM_Integer,
+   REG_VARIABLE(CFG_5G_RSSI_PENALIZE_THRESHOLD_NAME, WLAN_PARAM_SignedInteger,
                 hdd_config_t, rssi_penalize_threshold_5g,
                 VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
                 CFG_5G_RSSI_PENALIZE_THRESHOLD_DEFAULT,
@@ -5357,6 +5449,30 @@ REG_TABLE_ENTRY g_registry_table[] =
 		     CFG_ENABLE_MONITOR_ON_STA_DEFAULT,
 		     CFG_ENABLE_MONITOR_ON_STA_MIN,
 		     CFG_ENABLE_MONITOR_ON_STA_MAX),
+#ifdef WLAN_FEATURE_SAE
+	REG_VARIABLE(CFG_IS_SAE_ENABLED_NAME, WLAN_PARAM_Integer,
+		struct hdd_config, is_sae_enabled,
+		VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		CFG_IS_SAE_ENABLED_DEFAULT,
+		CFG_IS_SAE_ENABLED_MIN,
+		CFG_IS_SAE_ENABLED_MAX),
+
+	REG_VARIABLE(CFG_ENABLE_SAE_FOR_SAP_NAME, WLAN_PARAM_Integer,
+		struct hdd_config, enable_sae_for_sap,
+		VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		CFG_ENABLE_SAE_FOR_SAP_DEFAULT,
+		CFG_ENABLE_SAE_FOR_SAP_MIN,
+		CFG_ENABLE_SAE_FOR_SAP_MAX),
+#endif
+
+#ifdef MULTI_IF_LOG
+       REG_VARIABLE(CFG_HOST_LOG_CUSTOM_NETLINK_PROTO, WLAN_PARAM_Integer,
+		hdd_config_t, host_log_custom_nl_proto,
+		VAR_FLAGS_OPTIONAL | VAR_FLAGS_RANGE_CHECK_ASSUME_DEFAULT,
+		CFG_HOST_LOG_CUSTOM_NETLINK_PROTO_DEFAULT,
+		CFG_HOST_LOG_CUSTOM_NETLINK_PROTO_MIN,
+		CFG_HOST_LOG_CUSTOM_NETLINK_PROTO_MAX),
+#endif
 };
 
 
@@ -5538,7 +5654,7 @@ VOS_STATUS hdd_parse_config_ini(hdd_context_t* pHddCtx)
 
    memset(cfgIniTable, 0, sizeof(cfgIniTable));
 
-   status = request_firmware(&fw, WLAN_INI_FILE, pHddCtx->parent_dev);
+   status = qca_request_firmware(&fw, WLAN_INI_FILE, pHddCtx->parent_dev);
 
    if(status)
    {
@@ -5625,6 +5741,29 @@ config_exit:
    return vos_status;
 }
 
+#ifdef WLAN_FEATURE_SAE
+static void hdd_cfg_print_sae(hdd_context_t *hdd_ctx)
+{
+	hddLog(LOG2, "Name = [%s] value = [%u]",
+	       CFG_IS_SAE_ENABLED_NAME,
+	       hdd_ctx->cfg_ini->is_sae_enabled);
+}
+
+static void hdd_cfg_print_sae_sap(hdd_context_t *hdd_ctx)
+{
+	hddLog(LOG2, "Name = [%s] value = [%u]",
+	       CFG_ENABLE_SAE_FOR_SAP_NAME,
+	       hdd_ctx->cfg_ini->enable_sae_for_sap);
+}
+#else
+static void hdd_cfg_print_sae(hdd_context_t *hdd_ctx)
+{
+}
+
+static void hdd_cfg_print_sae_sap(hdd_context_t *hdd_ctx)
+{
+}
+#endif
 
 void print_hdd_cfg(hdd_context_t *pHddCtx)
 {
@@ -5674,6 +5813,11 @@ void print_hdd_cfg(hdd_context_t *pHddCtx)
              "Name = [sap_channel_avoidance] value = [%u]",
              pHddCtx->cfg_ini->sap_channel_avoidance);
 #endif /* FEATURE_AP_MCC_CH_AVOIDANCE */
+
+  VOS_TRACE (VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO_HIGH,
+             "Name = [%s] value = [%u]", CFG_REMOVE_TIME_STAMP_SYNC_CMD_NAME,
+             pHddCtx->cfg_ini->remove_time_stamp_sync_cmd);
+
   VOS_TRACE (VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO_HIGH,
              "Name = [%s] value = [%u]", CFG_SAP_P2P_11AC_OVERRIDE_NAME,
              pHddCtx->cfg_ini->sap_p2p_11ac_override);
@@ -5973,7 +6117,7 @@ void print_hdd_cfg(hdd_context_t *pHddCtx)
                    pHddCtx->cfg_ini->isRoamOffloadEnabled);
 #endif
 
-  VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+  VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO_HIGH,
            "Name = [gEnableHostapdEdcaLocal] Value = [%u]",
                    pHddCtx->cfg_ini->enable_hostapd_edca_local);
 
@@ -6237,7 +6381,7 @@ void print_hdd_cfg(hdd_context_t *pHddCtx)
          CFG_SUB_20_CHANNEL_WIDTH_NAME,
          pHddCtx->cfg_ini->sub_20_channel_width);
 
-  hddLog(LOGE, "Name = [%s] Value = [%u]",
+  hddLog(LOG2, "Name = [%s] Value = [%u]",
          CFG_STA_CHANGE_COUNTRYCODE_DYN_NAME ,
          pHddCtx->cfg_ini->sta_change_cc_via_beacon);
 
@@ -6291,6 +6435,8 @@ void print_hdd_cfg(hdd_context_t *pHddCtx)
   hddLog(LOG2, "Name = [%s] Value = [%u]",
                  CFG_ARP_AC_CATEGORY,
                  pHddCtx->cfg_ini->arp_ac_category);
+  hdd_cfg_print_sae(pHddCtx);
+  hdd_cfg_print_sae_sap(pHddCtx);
 }
 
 #define CFG_VALUE_MAX_LEN 256
@@ -6493,7 +6639,7 @@ VOS_STATUS hdd_update_mac_config(hdd_context_t *pHddCtx)
    VOS_STATUS vos_status = VOS_STATUS_SUCCESS;
 
    memset(macTable, 0, sizeof(macTable));
-   status = request_firmware(&fw, WLAN_MAC_FILE, pHddCtx->parent_dev);
+   status = qca_request_firmware(&fw, WLAN_MAC_FILE, pHddCtx->parent_dev);
 
    if (status)
    {
@@ -7960,6 +8106,20 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
        hddLog(LOGE, "Could not pass on WNI_CFG_MAX_HT_MCS_TX_DATA to CCM");
    }
 
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_MASK_TX_HT_RATE,
+                    pConfig->mask_tx_ht_rate, NULL,
+                    eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE) {
+       fStatus = FALSE;
+       hddLog(LOGE, "Could not pass on WNI_CFG_MASK_TX_HT_RATE to CCM");
+   }
+
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_MASK_TX_LEGACY_RATE,
+                    pConfig->mask_tx_legacy_rate, NULL,
+                    eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE) {
+       fStatus = FALSE;
+       hddLog(LOGE, "Could not pass on WNI_CFG_MASK_TX_LEGACY_RATE to CCM");
+   }
+
    if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_DISABLE_ABG_RATE_FOR_TX_DATA,
                     pConfig->disable_abg_rate_txdata, NULL,
                     eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE) {
@@ -7986,6 +8146,13 @@ v_BOOL_t hdd_update_config_dat( hdd_context_t *pHddCtx )
                     eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE) {
        fStatus = FALSE;
        hddLog(LOGE, "Could not pass on WNI_CFG_RATE_FOR_TX_MGMT_5G to CCM");
+   }
+
+   if (ccmCfgSetInt(pHddCtx->hHal, WNI_CFG_REMOVE_TIME_SYNC_CMD,
+                    pConfig->remove_time_stamp_sync_cmd, NULL,
+                    eANI_BOOLEAN_FALSE) == eHAL_STATUS_FAILURE) {
+       fStatus = FALSE;
+       hddLog(LOGE, "Could not pass on WNI_CFG_REMOVE_TIME_SYNC_CMD to CCM");
    }
 
    return fStatus;
@@ -8986,6 +9153,14 @@ void hdd_set_btc_bt_wlan_interval(hdd_context_t *hdd_ctx)
 
         if (VOS_STATUS_SUCCESS != status)
                 hddLog(LOGE, "Fail to set pta coex");
+#endif
+
+
+#ifdef WMI_COEX_BTC_DUTYCYCLE
+       status = sme_set_btc_coex_dutycycle(config->coex_btc_PauseDuration,config->coex_btc_UnPauseDuration);
+
+        if (VOS_STATUS_SUCCESS != status)
+                hddLog(LOGE, "Fail to set coex PauseDuration");
 #endif
 
 }

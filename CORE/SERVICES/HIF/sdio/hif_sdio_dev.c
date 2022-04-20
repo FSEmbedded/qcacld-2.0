@@ -176,8 +176,8 @@ HTC_PACKET *HIFDevAllocRxBuffer(HIF_SDIO_DEVICE *pDev, size_t length)
  */
 static inline void rx_completion_sem_init(HIF_SDIO_DEVICE *pDev)
 {
-	spin_lock_init(&pDev->pRecvTask->rx_bundle_lock);
-	spin_lock_init(&pDev->pRecvTask->rx_sync_completion_lock);
+	adf_os_spinlock_init(&pDev->pRecvTask->rx_bundle_lock);
+	adf_os_spinlock_init(&pDev->pRecvTask->rx_sync_completion_lock);
 	sema_init(&pDev->pRecvTask->sem_rx_completion, 0);
 }
 extern int rx_completion_task(void *param);
@@ -273,7 +273,7 @@ HIF_SDIO_DEVICE* HIFDevCreate(HIF_DEVICE *hif_device,
     INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxBundleQueue);
     INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxSyncCompletionQueue);
     hif_start_rx_completion_thread(pDev);
-    spin_lock_init(&pDev->pRecvTask->rx_alloc_lock);
+    adf_os_spinlock_init(&pDev->pRecvTask->rx_alloc_lock);
     INIT_HTC_PACKET_QUEUE(&pDev->pRecvTask->rxAllocQueue);
 #endif
 
@@ -475,7 +475,7 @@ A_STATUS HIFDevSetup(HIF_SDIO_DEVICE *pDev)
 
     switch (pDev->HifIRQProcessingMode) {
     case HIF_DEVICE_IRQ_SYNC_ONLY:
-        AR_DEBUG_PRINTF(ATH_DEBUG_WARN,
+        AR_DEBUG_PRINTF(ATH_DEBUG_TRC,
                 ("HIF Interrupt processing is SYNC ONLY\n"));
         /* see if HIF layer wants HTC to yield */
         HIFConfigureDevice(hif_device,

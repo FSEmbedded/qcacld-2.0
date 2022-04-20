@@ -1593,6 +1593,7 @@ void hdd_suspend_wlan(void (*callback)(void *callbackContext, boolean suspended)
    hdd_adapter_t *pAdapter = NULL;
    hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
    bool hdd_enter_bmps = FALSE;
+   enum netif_action_type action;
 
    hddLog(VOS_TRACE_LEVEL_INFO, "%s: WLAN being suspended by Android OS",__func__);
 
@@ -1671,9 +1672,9 @@ send_suspend_ind:
             hdd_thermal_off_carrier(pAdapter);
         }
 
-       wlan_hdd_netif_queue_control(pAdapter, WLAN_NETIF_TX_DISABLE,
-                      WLAN_CONTROL_PATH);
-
+       action = pHddCtx->is_nonos_suspend ? WLAN_NETIF_TX_DISABLE_N_CARRIER :
+                                            WLAN_NETIF_TX_DISABLE;
+       wlan_hdd_netif_queue_control(pAdapter, action, WLAN_CONTROL_PATH);
 
        WLANTL_PauseUnPauseQs(pVosContext, true);
 
@@ -1714,10 +1715,10 @@ static void hdd_PowerStateChangedCB
    {
        pHddCtx->hdd_ignore_dtim_enabled = TRUE;
    }
-   spin_lock(&pHddCtx->filter_lock);
+   adf_os_spin_lock(&pHddCtx->filter_lock);
    if ((newState == BMPS) &&  pHddCtx->hdd_wlan_suspended)
    {
-      spin_unlock(&pHddCtx->filter_lock);
+      adf_os_spin_unlock(&pHddCtx->filter_lock);
       if (VOS_FALSE == pHddCtx->sus_res_mcastbcast_filter_valid)
       {
           pHddCtx->sus_res_mcastbcast_filter =
@@ -1745,20 +1746,20 @@ static void hdd_PowerStateChangedCB
        * resume request will be lost. So reconfigure the filters on detecting
        * a change in the power state of the WCN chip.
        */
-      spin_unlock(&pHddCtx->filter_lock);
+      adf_os_spin_unlock(&pHddCtx->filter_lock);
       if (IMPS != newState)
       {
-           spin_lock(&pHddCtx->filter_lock);
+           adf_os_spin_lock(&pHddCtx->filter_lock);
            if (FALSE == pHddCtx->hdd_wlan_suspended)
            {
-                spin_unlock(&pHddCtx->filter_lock);
+                adf_os_spin_unlock(&pHddCtx->filter_lock);
                 hddLog(VOS_TRACE_LEVEL_INFO,
                           "Not in IMPS/BMPS and suspended state");
                 hdd_conf_mcastbcast_filter(pHddCtx, FALSE);
            }
            else
            {
-                spin_unlock(&pHddCtx->filter_lock);
+                adf_os_spin_unlock(&pHddCtx->filter_lock);
            }
       }
    }
@@ -1784,7 +1785,7 @@ void hdd_register_mcast_bcast_filter(hdd_context_t *pHddCtx)
       return;
    }
 
-   spin_lock_init(&pHddCtx->filter_lock);
+   adf_os_spinlock_init(&pHddCtx->filter_lock);
    if (WLAN_MAP_SUSPEND_TO_MCAST_BCAST_FILTER ==
                                             pHddCtx->cfg_ini->nEnableSuspend)
    {
@@ -1827,6 +1828,10 @@ void hdd_unregister_mcast_bcast_filter(hdd_context_t *pHddCtx)
    }
 }
 
+#ifdef WLAN_FEATURE_USB_RECOVERY
+extern bool hif_usb_check(void);
+#endif
+
 void hdd_resume_wlan(bool thermal)
 {
    hdd_context_t *pHddCtx = NULL;
@@ -1834,6 +1839,7 @@ void hdd_resume_wlan(bool thermal)
    hdd_adapter_list_node_t *pAdapterNode = NULL, *pNext = NULL;
    VOS_STATUS status;
    v_CONTEXT_t pVosContext = NULL;
+   enum netif_action_type action;
 
    hddLog(VOS_TRACE_LEVEL_INFO, "%s: WLAN being resumed by Android OS",__func__);
 
@@ -1924,9 +1930,9 @@ send_resume_ind:
 
       WLANTL_PauseUnPauseQs(pVosContext, false);
 
-      wlan_hdd_netif_queue_control(pAdapter,
-                WLAN_WAKE_ALL_NETIF_QUEUE,
-                WLAN_CONTROL_PATH);
+      action = pHddCtx->is_nonos_suspend ? WLAN_START_ALL_NETIF_QUEUE_N_CARRIER :
+                                           WLAN_WAKE_ALL_NETIF_QUEUE;
+      wlan_hdd_netif_queue_control(pAdapter, action, WLAN_CONTROL_PATH);
 
       if (thermal) {
         hdd_thermal_on_carrier(pAdapter);
@@ -1940,6 +1946,10 @@ send_resume_ind:
 
 #ifdef IPA_OFFLOAD
    hdd_ipa_resume(pHddCtx);
+#endif
+
+#ifdef WLAN_FEATURE_USB_RECOVERY
+   schedule_delayed_work(&pHddCtx->usb_detect_work, msecs_to_jiffies(10000));
 #endif
 
 #ifdef SUPPORT_EARLY_SUSPEND_STANDBY_DEEPSLEEP
@@ -1974,21 +1984,26 @@ VOS_STATUS hdd_wlan_reset_initialization(void)
    return VOS_STATUS_SUCCESS;
 }
 
-static void hdd_ssr_timer_init(void)
-{
-    init_timer(&ssr_timer);
-}
-
 static void hdd_ssr_timer_del(void)
 {
-    del_timer(&ssr_timer);
+    adf_os_timer_cancel(&ssr_timer);
     ssr_timer_started = false;
 }
 
-static void hdd_ssr_timer_cb(unsigned long data)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
+static void hdd_ssr_timer_cb(struct timer_list *t)
+#else
+static void hdd_ssr_timer_cb(void *data)
+#endif
 {
     hddLog(VOS_TRACE_LEVEL_FATAL, "%s: HDD SSR timer expired!", __func__);
     VOS_BUG(0);
+}
+
+static void hdd_ssr_timer_init(void)
+{
+    adf_os_timer_init(NULL, &ssr_timer,
+                      hdd_ssr_timer_cb, NULL, ADF_NON_DEFERRABLE_TIMER);
 }
 
 static void hdd_ssr_timer_start(int msec)
@@ -1998,9 +2013,7 @@ static void hdd_ssr_timer_start(int msec)
         hddLog(VOS_TRACE_LEVEL_FATAL, "%s: Trying to start SSR timer when "
                "it's running!", __func__);
     }
-    ssr_timer.expires = jiffies + msecs_to_jiffies(msec);
-    ssr_timer.function = hdd_ssr_timer_cb;
-    add_timer(&ssr_timer);
+    adf_os_timer_start(&ssr_timer, msec);
     ssr_timer_started = true;
 }
 
@@ -2326,10 +2339,8 @@ VOS_STATUS hdd_wlan_re_init(void *hif_sc)
       goto err_re_init;
    }
 
-#if  !defined(REMOVE_PKT_LOG)
-      hif_init_pdev_txrx_handle(hif_sc,
-      vos_get_context(VOS_MODULE_ID_TXRX, pVosContext));
-#endif
+   hif_init_pdev_txrx_handle(hif_sc,
+         vos_get_context(VOS_MODULE_ID_TXRX, pVosContext));
 
    /* Save the hal context in Adapter */
    pHddCtx->hHal = (tHalHandle)vos_get_context( VOS_MODULE_ID_SME, pVosContext );
@@ -2485,6 +2496,8 @@ VOS_STATUS hdd_wlan_re_init(void *hif_sc)
    pHddCtx->btCoexModeSet = false;
    hdd_register_mcast_bcast_filter(pHddCtx);
 
+   wlan_hdd_process_tdcc_ps(NULL, PS_TDCC_RESET, NULL, NULL);
+
    /* Allow the phone to go to sleep */
    hdd_allow_suspend(WIFI_POWER_EVENT_WAKELOCK_DRIVER_REINIT);
    /* register for riva power on lock */
@@ -2536,6 +2549,7 @@ err_vosclose:
 
 #ifdef MEMORY_DEBUG
    adf_net_buf_debug_exit();
+   adf_nbuf_map_check_for_leaks();
    vos_mem_exit();
 #endif
 
