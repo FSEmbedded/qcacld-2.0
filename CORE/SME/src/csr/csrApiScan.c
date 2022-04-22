@@ -2730,6 +2730,7 @@ eHalStatus csrScanningStateMsgProcessor( tpAniSirGlobal pMac, void *pMsgBuf )
 		roam_info = vos_mem_malloc(sizeof(*roam_info));
 		if (!roam_info)
 			return eHAL_STATUS_FAILED_ALLOC;
+        vos_mem_zero(roam_info, sizeof(*roam_info));
 		switch (pMsg->type) {
 		case eWNI_SME_UPPER_LAYER_ASSOC_CNF:
 		{

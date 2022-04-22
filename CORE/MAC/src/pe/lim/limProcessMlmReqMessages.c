@@ -4680,7 +4680,7 @@ ePhyChanBondState limGet11ACPhyCBState(tpAniSirGlobal pMac, tANI_U8 channel, tAN
         else if ((channel - 2 ) == peerCenterChan )
             cbState =  PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_HIGH;
         else
-            limLog (pMac, LOGP,
+            limLog (pMac, LOGE,
                        FL("Invalid Channel Number = %d Center Chan = %d "),
                                  channel, peerCenterChan);
     }
@@ -4695,7 +4695,7 @@ ePhyChanBondState limGet11ACPhyCBState(tpAniSirGlobal pMac, tANI_U8 channel, tAN
         else if ((channel - 6 ) == peerCenterChan )
             cbState =  PHY_QUADRUPLE_CHANNEL_20MHZ_HIGH_40MHZ_HIGH;
         else
-           limLog (pMac, LOGP,
+           limLog (pMac, LOGE,
                          FL("Invalid Channel Number = %d Center Chan = %d "),
                                             channel, peerCenterChan);
     }

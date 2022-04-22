@@ -960,6 +960,7 @@ static void hdd_ndp_iface_create_rsp_handler(hdd_adapter_t *adapter,
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		goto nla_put_failure;
+	vos_mem_zero(roam_info, sizeof(*roam_info));
 
 	sta_ctx->broadcast_staid = ndi_rsp->sta_id;
 	hdd_save_peer(sta_ctx, sta_ctx->broadcast_staid, &bc_mac_addr);
@@ -1270,6 +1271,8 @@ static void hdd_ndp_new_peer_ind_handler(hdd_adapter_t *adapter,
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return;
+	vos_mem_zero(roam_info, sizeof(*roam_info));
+
 	/* this function is called for each new peer */
 	ndp_ctx->active_ndp_peers++;
 	hddLog(LOG1, FL("vdev_id: %d, num_peers: %d"),

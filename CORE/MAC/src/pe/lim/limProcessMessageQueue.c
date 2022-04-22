@@ -895,6 +895,14 @@ limHandle80211Frames(tpAniSirGlobal pMac, tpSirMsgQ limMsg, tANI_U8 *pDeferMsg)
             goto end;
         }
     }
+    if (pMac->sme.is_dfs_csr_inprogress == true) {
+        psessionEntry = peFindSessionByBssid(pMac, pHdr->bssId, &sessionId);
+        if (psessionEntry && LIM_IS_STA_ROLE(psessionEntry)) {
+            if (pMac->sme.set_dfs_csr_block_tx)
+                pMac->sme.set_dfs_csr_block_tx(pMac->hHdd, false);
+            pMac->sme.is_dfs_csr_inprogress = false;
+        }
+    }
 #ifdef WLAN_DUMP_MGMTFRAMES
     limLog( pMac, LOGE, FL("ProtVersion %d, Type %d, Subtype %d rateIndex=%d"),
             fc.protVer, fc.type, fc.subType,

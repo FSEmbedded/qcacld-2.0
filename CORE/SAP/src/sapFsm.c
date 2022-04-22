@@ -1413,6 +1413,546 @@ static bool sap_is_valid_acs_channel(ptSapContext sap_ctx, uint8_t channel)
 	return false;
 }
 
+#define DOT11_MODE_11ac 4  /* BW80 */
+#define DOT11_MODE_11n  2  /* BW40 */
+#define DOT11_MODE_11a  1  /* BW20 */
+
+static v_U8_t sapCheckDot11mode(ptSapContext sapContext)
+{
+    v_U8_t dot11mode=0;
+
+	switch(sapContext->csrRoamProfile.vht_channel_width){
+		case eHT_CHANNEL_WIDTH_80MHZ:
+			dot11mode = DOT11_MODE_11ac;
+			break;
+		case eHT_CHANNEL_WIDTH_40MHZ:
+			dot11mode = DOT11_MODE_11n;
+			break;
+		case eHT_CHANNEL_WIDTH_20MHZ:
+			dot11mode = DOT11_MODE_11a;
+			break;
+		default:
+			dot11mode = DOT11_MODE_11a;
+			break;
+	}
+
+	return dot11mode;
+}
+
+static int sapGetNextChannel(int dot11mode,int cur_ch,const v_COUNTRYCODE_t country_code)
+{
+	u_int8_t w56_11a_channel_list[12] = { 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 100};
+	u_int8_t w56_11n_channel_list[14] = { 100, 104, 108, 112, 116, 120, 124, 128, 132, 136, 140, 140, 100, 100};
+	u_int8_t w56_11ac_channel_list[20] = {100, 104, 108, 112, 116, 120, 124, 128, 132, 132, 132, 132, 140, 140, 140, 140, 100, 100, 100, 100};
+	u_int8_t w53_11a_channel_list[5] = {52, 56, 60, 64, 52};
+	u_int8_t w53_11n_channel_list[6] = {52, 56, 60, 64, 52, 56};
+	u_int8_t w53_11ac_channel_list[8] = {52, 56, 60, 64, 36, 36, 36, 36};
+
+	u_int8_t *channel_list = NULL;
+	int next_ch = 140;
+	int i = 0;
+
+	if( cur_ch >= 100 ) {
+		if ( dot11mode == DOT11_MODE_11ac )
+				channel_list = w56_11ac_channel_list;
+		else if ( dot11mode == DOT11_MODE_11n )
+				channel_list = w56_11n_channel_list;
+		else if ( dot11mode == DOT11_MODE_11a )
+				channel_list = w56_11a_channel_list;
+	}
+	else {
+		if ( dot11mode == DOT11_MODE_11ac )
+				channel_list = w53_11ac_channel_list;
+		else if ( dot11mode == DOT11_MODE_11n )
+				channel_list = w53_11n_channel_list;
+		else if ( dot11mode == DOT11_MODE_11a )
+				channel_list = w53_11a_channel_list;
+	}
+
+	for ( i=0; i<strlen(channel_list); i++) {
+		if ( cur_ch == channel_list[i] ) {
+			next_ch = channel_list[i+dot11mode];
+			break;
+		}
+	}
+
+	/* CANADA */
+	if( !memcmp(country_code, "CA", 2) && next_ch >= 120 && next_ch <= 128 ) {
+				next_ch = 132;
+	}
+
+	return next_ch;
+}
+
+static void sap_SetDfsFull(ptSapContext sapContext, u_int8_t value)
+{
+    tHalHandle hHal = VOS_GET_HAL_CB(sapContext->pvosGCtx);
+    tpAniSirGlobal pMac;
+
+    if (NULL == hHal)
+    {
+        return;
+    }
+    pMac = PMAC_STRUCT( hHal );
+    pMac->sap.SapDfsInfo.dfs_full = value;
+
+}
+
+
+static u_int8_t sap_GetDfsFull(ptSapContext sapContext)
+{
+    tHalHandle hHal = VOS_GET_HAL_CB(sapContext->pvosGCtx);
+    tpAniSirGlobal pMac;
+
+    if (NULL == hHal)
+    {
+        return 0;
+    }
+    pMac = PMAC_STRUCT( hHal );
+    return pMac->sap.SapDfsInfo.dfs_full;
+
+}
+
+
+
+static v_U8_t sapChannelSelect(v_U32_t current_channel, int available_chan_count,int dot11mode,
+                               v_U8_t *available_chan_idx,const v_COUNTRYCODE_t country_code)
+{
+	int i=0;
+	int target_channel = 0;
+	int next_ch=0;
+
+	target_channel = sapGetNextChannel(dot11mode,current_channel,country_code);
+
+	if (available_chan_idx != NULL) {
+		for(i=0;i<available_chan_count;i++){
+			if(target_channel == available_chan_idx[i]){
+				next_ch=target_channel;
+				break;
+			}
+		}
+	} else {
+		next_ch=target_channel;
+	}
+
+	return next_ch;
+}
+
+
+static unsigned long sapGetNolRadarFoundTime(ptSapContext sapContext, v_U8_t channelNumber)
+{
+    int i;
+    unsigned long timeElapsedSinceLastRadar,timeWhenRadarFound,currentTime = 0;
+    tHalHandle hHal = VOS_GET_HAL_CB(sapContext->pvosGCtx);
+    tpAniSirGlobal pMac;
+
+    if (NULL == hHal)
+    {
+        return 0;
+    }
+    else
+    {
+        pMac = PMAC_STRUCT( hHal );
+    }
+
+    if ((pMac->sap.SapDfsInfo.numCurrentRegDomainDfsChannels == 0) ||
+            (pMac->sap.SapDfsInfo.numCurrentRegDomainDfsChannels >
+            NUM_5GHZ_CHANNELS))
+    {
+        return 0;
+    }
+
+    for (i =0 ; i< pMac->sap.SapDfsInfo.numCurrentRegDomainDfsChannels; i++)
+    {
+        if(pMac->sap.SapDfsInfo.sapDfsChannelNolList[i]
+                                 .dfs_channel_number == channelNumber)
+        {
+            timeWhenRadarFound = pMac->sap.SapDfsInfo
+                                 .sapDfsChannelNolList[i]
+                                 .radar_found_timestamp;
+
+            currentTime = vos_get_monotonic_boottime();
+            timeElapsedSinceLastRadar = currentTime - timeWhenRadarFound;
+            if (timeElapsedSinceLastRadar >=  SAP_DFS_NON_OCCUPANCY_PERIOD) /* 30min = 1800000000 usec */
+            {
+                return 0;
+            }
+            else
+            {
+                return (SAP_DFS_NON_OCCUPANCY_PERIOD - timeElapsedSinceLastRadar)/1000;
+            }
+        }
+    }
+    return 0;
+}
+
+
+
+/*
+ * This function custom pick up an AVAILABLE channel
+ */
+static v_U8_t sapCustomChannelSel(ptSapContext sapContext)
+{
+
+    v_U8_t   available_chnl_count = 0;
+    v_U8_t   valid_chnl_count = 0;
+    v_U8_t   availableChannels[WNI_CFG_VALID_CHANNEL_LIST_LEN] = {0,};
+    v_U8_t   target_channel = 0;
+    v_BOOL_t isChannelNol = VOS_FALSE;
+    v_BOOL_t is_valid_acs_chan = VOS_FALSE;
+    chan_bonding_bitmap channelBitmap;
+    v_U8_t   i = 0;
+    v_U8_t   channelID;
+    tHalHandle hHal = VOS_GET_HAL_CB(sapContext->pvosGCtx);
+    tpAniSirGlobal pMac;
+    tANI_U32 chanWidth;
+    ePhyChanBondState cbModeCurrent;
+    v_U8_t   *tempChannels = NULL;
+    uint8_t dfs_region;
+	v_U8_t dot11mode;
+	int current_channel = sapContext->channel;
+
+    if (NULL == hHal) {
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                  FL("invalid hHal"));
+        return target_channel;
+    }
+
+    pMac = PMAC_STRUCT(hHal);
+    if (NULL == pMac) {
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                  FL("invalid pMac"));
+        return target_channel;
+    }
+
+    /*
+     * Retrieve the original one and store it.
+     * use the stored original value when you call this function next time
+     * so fall back mechanism always starts with original ini value.
+     */
+
+    if (pMac->sap.SapDfsInfo.orig_cbMode == 0)
+    {
+        pMac->sap.SapDfsInfo.orig_cbMode = sme_SelectCBMode(hHal,
+                                         sapContext->csrRoamProfile.phyMode,
+                                         sapContext->channel,
+                                         sapContext->secondary_ch,
+                                         &sapContext->vht_channel_width,
+                                         sapContext->ch_width_orig);
+        pMac->sap.SapDfsInfo.orig_cbMode = csrConvertCBIniValueToPhyCBState(
+                                              pMac->sap.SapDfsInfo.orig_cbMode);
+        cbModeCurrent = pMac->sap.SapDfsInfo.orig_cbMode;
+    }
+    else
+    {
+        cbModeCurrent = pMac->sap.SapDfsInfo.orig_cbMode;
+    }
+
+    /*
+     * Retrieve the original one and store it.
+     * use the stored original value when you call this function next time
+     * so fall back mechanism always starts with original ini value.
+     */
+    if (pMac->sap.SapDfsInfo.orig_chanWidth == 0)
+    {
+        pMac->sap.SapDfsInfo.orig_chanWidth =
+                  sapContext->ch_width_orig;
+        chanWidth = pMac->sap.SapDfsInfo.orig_chanWidth;
+    }
+    else
+    {
+        chanWidth = pMac->sap.SapDfsInfo.orig_chanWidth;
+    }
+
+    if (sapGet5GHzChannelList(sapContext))
+    {
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                  FL("Getting 5Ghz channel list failed"));
+        return target_channel;
+    }
+
+    vos_nv_get_dfs_region(&dfs_region);
+
+    /*
+     * valid_chnl_count will be used to find number of valid channels
+     * after following for loop ends
+     */
+    valid_chnl_count = sapContext->SapAllChnlList.numChannel;
+    /* loop to check ACS range or NOL channels */
+    for (i = 0; i < sapContext->SapAllChnlList.numChannel; i++)
+    {
+        channelID = sapContext->SapAllChnlList.channelList[i].channel;
+
+        /*
+         * IN JAPAN REGULATORY DOMAIN CHECK IF THE FOLLOWING TWO
+         * TWO RULES APPLY AND FILTER THE AVAILABLE CHANNELS
+         * ACCORDINGLY.
+         *
+         * 1. If we are operating in Japan regulatory domain
+         * Check if Japan W53 Channel operation is NOT
+         * allowed and if its not allowed then mark all the
+         * W53 channels as Invalid.
+         *
+         * 2. If we are operating in Japan regulatory domain
+         * Check if channel switch between Indoor/Outdoor
+         * is allowed. If it is not allowed then limit
+         * the avaiable channels to Indoor or Outdoor
+         * channels only based up on the SAP Channel location
+         * indicated by "sap_operating_channel_location" param.
+         */
+        if (DFS_MKK4_DOMAIN == dfs_region)
+        {
+            /*
+             * Check for JAPAN W53 Channel operation capability
+             */
+            if (VOS_TRUE ==  sapDfsIsW53Invalid(hHal, channelID))
+            {
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                      FL("index:%d, Channel=%d Invalid,Japan W53 Disabled"),
+                      i, channelID);
+                sapContext->SapAllChnlList.channelList[i].valid = VOS_FALSE;
+                valid_chnl_count--;
+                continue;
+            }
+
+            /*
+             * If SAP's preferred channel location is Indoor
+             * then set all the outdoor channels in the domain
+             * to invalid.If the preferred channel location is
+             * outdoor then set all the Indoor channels in the
+             * domain to Invalid.
+             */
+            if (VOS_FALSE ==
+                        sapDfsIsChannelInPreferredLocation(hHal, channelID))
+            {
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                   FL("CHAN=%d is invalid,preferred Channel Location %d Only"),
+                   channelID,
+                   pMac->sap.SapDfsInfo.sap_operating_chan_preferred_location);
+                sapContext->SapAllChnlList.channelList[i].valid = VOS_FALSE;
+                valid_chnl_count--;
+                continue;
+            }
+        }
+
+        if (vos_nv_getChannelEnabledState(channelID) == NV_CHANNEL_DFS)
+        {
+            isChannelNol = sapDfsIsChannelInNolList(sapContext,
+                                                   channelID,
+                                                   PHY_SINGLE_CHANNEL_CENTERED);
+            if (VOS_TRUE == isChannelNol)
+            {
+                /*
+                 * Mark this channel invalid since it is still in
+                 * DFS Non-Occupancy-Period which is 30 mins.
+                 */
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                          FL("index: %d, Channel = %d Present in NOL"),
+                          i, channelID);
+                sapContext->SapAllChnlList.channelList[i].valid = VOS_FALSE;
+                valid_chnl_count--;
+                continue;
+            }
+        }
+
+#ifdef FEATURE_AP_MCC_CH_AVOIDANCE
+        /* avoid channels on which another MDM AP in MCC mode is detected. */
+        if (pMac->sap.sap_channel_avoidance
+                && sapContext->sap_detected_avoid_ch_ie.present) {
+            if (sap_check_in_avoid_ch_list(sapContext, channelID)) {
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                          FL("index: %d, Channel = %d, avoided due to "
+                          "presence of another AP+AP MCC device in same "
+                          "channel."),
+                          i, channelID);
+                sapContext->SapAllChnlList.channelList[i].valid = VOS_FALSE;
+            }
+        }
+#endif /* FEATURE_AP_MCC_CH_AVOIDANCE */
+
+        /* check if the channel is within ACS channel range */
+        is_valid_acs_chan = sap_is_valid_acs_channel(sapContext,
+                                          channelID);
+        if (is_valid_acs_chan == false)
+        {
+            /*
+             * mark this channel invalid since it is out of ACS channel range
+             */
+            VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
+                     FL("index: %d, Channel=%d out of ACS channel range %d-%d"),
+                     i, channelID, sapContext->acs_cfg->start_ch,
+                     sapContext->acs_cfg->end_ch);
+            sapContext->SapAllChnlList.channelList[i].valid = VOS_FALSE;
+            valid_chnl_count--;
+            continue;
+        }
+    } /* end of check for NOL or ACS channels */
+
+    /* valid_chnl_count now have number of valid channels */
+    tempChannels = vos_mem_malloc(valid_chnl_count);
+    if (tempChannels == NULL) {
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                  FL("sapdfs: memory alloc failed"));
+        return target_channel;
+    }
+
+    do
+    {
+        v_U8_t   j = 0;
+#ifdef WLAN_ENABLE_CHNL_MATRIX_RESTRICTION
+        tSapDfsNolInfo *pNol = pMac->sap.SapDfsInfo.sapDfsChannelNolList;
+#endif
+
+        /* prepare temp list of just the valid channels */
+        for (i = 0; i < sapContext->SapAllChnlList.numChannel; i++) {
+            if (sapContext->SapAllChnlList.channelList[i].valid) {
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                          FL("sapdfs: Adding Channel = %d to temp List"),
+                          sapContext->SapAllChnlList.channelList[i].channel);
+                tempChannels[j++] =
+                    sapContext->SapAllChnlList.channelList[i].channel;
+            }
+        }
+
+#ifdef WLAN_ENABLE_CHNL_MATRIX_RESTRICTION
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                  FL("sapdfs: Processing temp channel list against NOL."));
+        if (VOS_STATUS_SUCCESS != sapMarkChannelsLeakingIntoNOL(sapContext,
+                                                               cbModeCurrent,
+                                                               pNol,
+                                                               valid_chnl_count,
+                                                               tempChannels)) {
+            vos_mem_free(tempChannels);
+            return target_channel;
+        }
+#endif
+        vos_mem_zero(availableChannels, sizeof(availableChannels));
+        vos_mem_zero(&channelBitmap, sizeof(channelBitmap));
+        channelBitmap.chanBondingSet[0].startChannel = 36;
+        channelBitmap.chanBondingSet[1].startChannel = 52;
+        channelBitmap.chanBondingSet[2].startChannel = 100;
+        channelBitmap.chanBondingSet[3].startChannel = 116;
+        channelBitmap.chanBondingSet[4].startChannel = 132;
+        channelBitmap.chanBondingSet[5].startChannel = 149;
+        /* now loop through whatever is left of channel list */
+        VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_ERROR,
+                  FL("sapdfs: Moving temp channel list to final."));
+        for (i = 0; i < valid_chnl_count; i++ ){
+            /*
+             * add channel from temp channel list to bitmap or fianl
+             * channel list (in case of 20MHz width)
+             */
+            if (tempChannels[i] != 0) {
+                VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_DEBUG,
+                          FL("sapdfs: processing channel: %d "),
+                          tempChannels[i]);
+                /* for 20MHz, directly create available channel list */
+                if (cbModeCurrent == PHY_SINGLE_CHANNEL_CENTERED) {
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_DEBUG,
+                              FL("sapdfs: Channel=%d added to available list"),
+                              tempChannels[i]);
+                    availableChannels[available_chnl_count++] =
+                        tempChannels[i];
+                } else {
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_DEBUG,
+                              FL("sapdfs: Channel=%d added to bitmap"),
+                              tempChannels[i]);
+                    sapSetBitmap(&channelBitmap, tempChannels[i]);
+                }
+            }
+        }
+
+        /* if 40 MHz or 80 MHz, populate available channel list from bitmap */
+        if (cbModeCurrent != PHY_SINGLE_CHANNEL_CENTERED) {
+            available_chnl_count = sapPopulateAvailableChannels(&channelBitmap,
+                                              cbModeCurrent,
+                                              availableChannels);
+            /* if no valid channel bonding found, fallback to lower bandwidth */
+            if (available_chnl_count == 0) {
+                if (cbModeCurrent >=
+                     PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_CENTERED) {
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:No 80MHz cb found, falling to 40MHz"));
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:Changing chanWidth from [%d] to [%d]"),
+                                 chanWidth, eHT_CHANNEL_WIDTH_40MHZ);
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:Changing CB mode from [%d] to [%d]"),
+                                 cbModeCurrent, PHY_DOUBLE_CHANNEL_LOW_PRIMARY);
+                    cbModeCurrent = PHY_DOUBLE_CHANNEL_LOW_PRIMARY;
+                    chanWidth = eHT_CHANNEL_WIDTH_40MHZ;
+                    /* continue to start of do loop */
+                    continue;
+                } else if (cbModeCurrent >=
+                             PHY_DOUBLE_CHANNEL_LOW_PRIMARY ) {
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:No 40MHz cb found, falling to 20MHz"));
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:Changing chanWidth from [%d] to [%d]"),
+                                 chanWidth, eHT_CHANNEL_WIDTH_20MHZ);
+                    VOS_TRACE(VOS_MODULE_ID_SAP,
+                              VOS_TRACE_LEVEL_WARN,
+                              FL("sapdfs:Changing CB mode from [%d] to [%d]"),
+                                 cbModeCurrent, PHY_SINGLE_CHANNEL_CENTERED);
+                    cbModeCurrent = PHY_SINGLE_CHANNEL_CENTERED;
+                    chanWidth = eHT_CHANNEL_WIDTH_20MHZ;
+                    /* continue to start of do loop */
+                    continue;
+                }
+            }
+        }
+
+        /*
+         * by now, available channels list will be populated or
+         * no channels are avaialbe
+         */
+		dot11mode = sapCheckDot11mode(sapContext);
+
+		target_channel = sapChannelSelect(current_channel,valid_chnl_count,dot11mode,tempChannels,sapContext->csrRoamProfile.countryCode);
+		if(target_channel == 0)
+		{
+			if( current_channel >= 100 ) /* All channel on DSF is NOL */
+
+			{
+				sapSignalHDDevent(sapContext, NULL, eSAP_DFS_NO_AVAILABLE_CHANNEL,
+								  (v_PVOID_t) eSAP_STATUS_SUCCESS);
+				sap_SetDfsFull(sapContext,1);
+			}
+			target_channel = sapChannelSelect(current_channel,0,dot11mode,NULL,sapContext->csrRoamProfile.countryCode);
+			if (current_channel <= 64)
+			{
+				target_channel = 36;
+			}
+		}
+
+        pMac->sap.SapDfsInfo.new_chanWidth = chanWidth;
+        pMac->sap.SapDfsInfo.new_cbMode = cbModeCurrent;
+        VOS_TRACE(VOS_MODULE_ID_SAP,
+                  VOS_TRACE_LEVEL_INFO_LOW,
+                  FL("sapdfs: New CB mode = %d"),
+                  pMac->sap.SapDfsInfo.new_cbMode);
+        VOS_TRACE(VOS_MODULE_ID_SAP,
+                  VOS_TRACE_LEVEL_INFO_LOW,
+                  FL("sapdfs: New Channel width = %d"),
+                  pMac->sap.SapDfsInfo.new_chanWidth);
+        VOS_TRACE(VOS_MODULE_ID_SAP,
+                  VOS_TRACE_LEVEL_INFO_LOW,
+                  FL("sapdfs: target_channel = %d"), target_channel);
+        break;
+    } while(1); /* this loop will iterate at max 3 times */
+
+    vos_mem_free(tempChannels);
+    return target_channel;
+}
+
+
 /*
  * This function randomly pick up an AVAILABLE channel
  */
@@ -3995,6 +4535,12 @@ eHalStatus sap_CloseSession(tHalHandle hHal,
             pMac->sap.SapDfsInfo.is_dfs_cac_timer_running = 0;
             vos_timer_destroy(&pMac->sap.SapDfsInfo.sap_dfs_cac_timer);
         }
+
+        if (sap_GetDfsFull(sapContext))
+        {
+            sap_SetDfsFull(sapContext,0);
+        }
+
         pMac->sap.SapDfsInfo.cac_state = eSAP_DFS_DO_NOT_SKIP_CAC;
         sap_CacResetNotify(hHal);
         vos_mem_zero(&pMac->sap, sizeof(pMac->sap));
@@ -5559,7 +6105,6 @@ static VOS_STATUS sapGet5GHzChannelList(ptSapContext sapContext)
             count++;
         }
     }
-
     sapContext->SapAllChnlList.numChannel = count;
     VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_LOW,
               "%s[%d] NUMBER OF CHANNELS count = %d"
@@ -5645,7 +6190,8 @@ v_U8_t sapIndicateRadar(ptSapContext sapContext, tSirSmeDfsEventInd *dfs_event)
         VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_DEBUG,
                   FL("Candidate channel exist, ch= %d"), target_channel);
     } else {
-        target_channel = sapRandomChannelSel(sapContext);
+//        target_channel = sapRandomChannelSel(sapContext);
+		target_channel = sapCustomChannelSel(sapContext);
     }
 
     if (0 == target_channel)
@@ -5698,6 +6244,11 @@ void sapDfsCacTimerCallback(void *data)
     /* Check to ensure that SAP is in DFS WAIT state*/
     if (sapContext->sapsMachine == eSAP_DFS_CAC_WAIT)
     {
+        if (sap_GetDfsFull(sapContext))
+        {
+            sap_SetDfsFull(sapContext,0);
+        }
+
         /*
          * CAC Complete, post eSAP_DFS_CHANNEL_CAC_END to sapFsm
          */
@@ -5740,6 +6291,11 @@ static int sapStopDfsCacTimer(ptSapContext sapContext)
         return 0;
     }
 
+    if (sap_GetDfsFull(sapContext))
+    {
+        sap_SetDfsFull(sapContext,0);
+    }
+
     vos_timer_stop(&pMac->sap.SapDfsInfo.sap_dfs_cac_timer);
     pMac->sap.SapDfsInfo.is_dfs_cac_timer_running = 0;
     vos_timer_destroy(&pMac->sap.SapDfsInfo.sap_dfs_cac_timer);
@@ -5775,7 +6331,7 @@ sap_is_channel_bonding_etsi_weather_channel(ptSapContext sap_context)
 int sapStartDfsCacTimer(ptSapContext sapContext)
 {
     VOS_STATUS status;
-    v_U32_t cacTimeOut;
+    unsigned long cacTimeOut;
     tHalHandle hHal = NULL;
     tpAniSirGlobal pMac = NULL;
     uint8_t dfs_region;
@@ -5812,8 +6368,14 @@ int sapStartDfsCacTimer(ptSapContext sapContext)
     {
         cacTimeOut = ETSI_WEATHER_CH_CAC_TIMEOUT;
     }
+
+    if (sap_GetDfsFull(sapContext))
+    {
+        cacTimeOut += sapGetNolRadarFoundTime(sapContext, sapContext->channel);
+    }
+
     VOS_TRACE(VOS_MODULE_ID_SAP, VOS_TRACE_LEVEL_INFO_MED,
-              "sapdfs: SAP_DFS_CHANNEL_CAC_START on CH - %d, CAC TIMEOUT - %d sec",
+              "sapdfs: SAP_DFS_CHANNEL_CAC_START on CH - %d, CAC TIMEOUT - %ld sec",
               sapContext->channel, cacTimeOut/1000);
 
     vos_timer_init(&pMac->sap.SapDfsInfo.sap_dfs_cac_timer,

@@ -232,6 +232,9 @@ typedef struct tagSmeStruct
     int (*get_tsf_cb)(void *pcb_cxt, struct stsf *ptsf);
     void *get_tsf_cxt;
 
+    void (*set_dfs_csr_block_tx)(void *hdd_context, bool val);
+    boolean is_dfs_csr_inprogress;
+
     v_BOOL_t enableSelfRecovery;
     tCsrLinkStatusCallback linkStatusCallback;
     void *linkStatusContext;

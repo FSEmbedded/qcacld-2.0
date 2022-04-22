@@ -1008,6 +1008,10 @@ typedef enum {
     WMITLV_TAG_STRUC_wmi_audio_aggr_del_group,
     WMITLV_TAG_STRUC_wmi_audio_aggr_set_group_rate,
     WMITLV_TAG_STRUC_wmi_audio_aggr_set_group_retry,
+#if 1
+    WMI_SET_THRESH62_CMDID_wmi_thresh62_fixed_param=0xffe,
+    WMI_SET_NFLIMIT_MAX_CMDID_wmi_nflimit_cmd_fixed_param=0xfff,/* maximum tagid */
+#endif
 } WMITLV_TAG_ID;
 
 /*
@@ -1074,6 +1078,8 @@ typedef enum {
     OP(WMI_ECHO_CMDID) \
     OP(WMI_PDEV_UTF_CMDID) \
     OP(WMI_PDEV_QVIT_CMDID) \
+    OP(WMI_SET_NFLIMIT_MAX_CMDID) \
+    OP(WMI_SET_THRESH62_CMDID) \
     OP(WMI_VDEV_SET_KEEPALIVE_CMDID) \
     OP(WMI_VDEV_GET_KEEPALIVE_CMDID) \
     OP(WMI_FORCE_FW_HANG_CMDID) \
@@ -2026,6 +2032,14 @@ WMITLV_CREATE_PARAM_STRUC(WMI_ECHO_CMDID);
     WMITLV_ELEM(id,op,buf,len, WMITLV_TAG_STRUC_wmi_wmm_params, wmi_wmm_params, wmm_params_ac_vo, WMITLV_SIZE_FIX)
 
 WMITLV_CREATE_PARAM_STRUC(WMI_PDEV_SET_WMM_PARAMS_CMDID);
+
+#define WMITLV_TABLE_WMI_SET_NFLIMIT_MAX_CMDID(id,op,buf,len) \
+    WMITLV_ELEM(id,op,buf,len, WMI_SET_NFLIMIT_MAX_CMDID_wmi_nflimit_cmd_fixed_param, wmi_nflimit_cmd_fixed_param, fixed_param, WMITLV_SIZE_FIX)
+WMITLV_CREATE_PARAM_STRUC(WMI_SET_NFLIMIT_MAX_CMDID);
+
+#define WMITLV_TABLE_WMI_SET_THRESH62_CMDID(id,op,buf,len) \
+    WMITLV_ELEM(id,op,buf,len, WMI_SET_THRESH62_CMDID_wmi_thresh62_fixed_param, wmi_thresh62_fixed_param, fixed_param, WMITLV_SIZE_FIX)
+WMITLV_CREATE_PARAM_STRUC(WMI_SET_THRESH62_CMDID);
 
 /* Vdev start request Cmd */
 #define WMITLV_TABLE_WMI_VDEV_START_REQUEST_CMDID(id,op,buf,len) \

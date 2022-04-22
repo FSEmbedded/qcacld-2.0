@@ -1319,6 +1319,7 @@ limIsNullSsid( tSirMacSSid *pSsid )
         }
 
 #define ASCII_SPACE_CHARACTER 0x20
+#ifdef NO_SILEX_CHANGED
         /* If the first charactes is space and SSID length is 1
          * then consider it as NULL SSID*/
         if((ASCII_SPACE_CHARACTER == pSsid->ssId[0])&&
@@ -1329,6 +1330,8 @@ limIsNullSsid( tSirMacSSid *pSsid )
         }
         else
         {
+#endif /* NO_SILEX_CHANGED */
+
             /* check if all the charactes in SSID are NULL*/
             SsidLength = pSsid->length;
             pSsidStr = pSsid->ssId;
@@ -1347,7 +1350,9 @@ limIsNullSsid( tSirMacSSid *pSsid )
                 fNullSsid = true;
                 break;
             }
+#ifdef NO_SILEX_CHANGED
         }
+#endif /* NO_SILEX_CHANGED */
     }
     while( 0 );
 

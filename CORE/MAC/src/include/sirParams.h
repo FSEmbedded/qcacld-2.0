@@ -829,6 +829,11 @@ struct sir_mgmt_msg {
 #define SIR_HAL_ADD_MULTICAST_GROUP       (SIR_HAL_ITC_MSG_TYPES_BEGIN + 388)
 #define SIR_HAL_SET_MULTICAST_RATE            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 389)
 #endif
+#if 1 /* silex */
+#define SIR_HAL_WLAN_DTIM_POLICY           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 390)
+#define SIR_HAL_NFLIMIT_SET_CMD            (SIR_HAL_ITC_MSG_TYPES_BEGIN + 391)
+#define SIR_HAL_SET_THRESH62_CMD           (SIR_HAL_ITC_MSG_TYPES_BEGIN + 392)
+#endif
 #define SIR_HAL_MSG_TYPES_END               (SIR_HAL_MSG_TYPES_BEGIN + 0x1FF)
 
 // CFG message types

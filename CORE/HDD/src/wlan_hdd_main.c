@@ -1804,6 +1804,12 @@ hdd_parse_get_ibss_peer_info(tANI_U8 *pValue, v_MACADDR_t *pPeerMacAddr)
     return VOS_STATUS_SUCCESS;
 }
 
+static void hdd_set_dfs_csr_block_tx(hdd_context_t *pHddCtx, bool val)
+{
+    hddLog(LOG1, FL("val =%d"), val);
+    pHddCtx->dfs_csr_block_tx = val;
+}
+
 #ifdef IPA_UC_STA_OFFLOAD
 static void hdd_set_thermal_level_cb(hdd_context_t *pHddCtx, u_int8_t level)
 {
@@ -12027,6 +12033,175 @@ uint32_t hdd_get_current_vdev_sta_count(hdd_context_t *hdd_ctx)
 	return vdev_sta_cnt;
 }
 
+#if 0 /* silex : not used, because now set dtim policy in WMA.*/
+void wlan_hdd_set_dtim_policy(hdd_context_t *pHddCtx)
+{
+    int ret = 0;
+    vos_msg_t msg = {0};
+
+    msg.type = WDA_WLAN_DTIM_POLICY;
+    msg.reserved = 0;
+    msg.bodyptr = NULL;
+
+    if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA, &msg)) {
+       VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: "
+                 "Not able to post wda_cli_set_cmd message to WDA",
+                 __func__);
+       ret = -EIO;
+    }
+
+    return;
+}
+#endif
+
+#if 1
+static int check_country_code_etsi(hdd_context_t *pHddCtx)
+{
+    if(!strncmp(pHddCtx->reg.alpha2, "DE", 2) ||
+       !strncmp(pHddCtx->reg.alpha2, "RS", 2) ||
+       !strncmp(pHddCtx->reg.alpha2, "TR", 2) ||
+       !strncmp(pHddCtx->reg.alpha2, "00", 2)) {
+        return 1;
+    }
+    return 0;
+}
+
+void wlan_hdd_set_nflimit(hdd_context_t *pHddCtx)
+{
+    int ret = 0;
+    vos_msg_t msg = {0};
+    int is_etsi_country = 0;
+
+    is_etsi_country = check_country_code_etsi(pHddCtx);
+
+    if (pHddCtx->cfg_ini->nflimit_max2g || (is_etsi_country && pHddCtx->cfg_ini->nflimit_max2g_etsi)) {
+        wmi_nflimit_cmd_fixed_param *param1 = (wmi_nflimit_cmd_fixed_param *)vos_mem_malloc(
+                                sizeof(wmi_nflimit_cmd_fixed_param));
+        if (NULL == param1) {
+           hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_mem_alloc failed", __func__);
+           return;
+        }
+        vos_mem_zero((void *)param1, sizeof(wmi_nflimit_cmd_fixed_param));
+        if(is_etsi_country) {
+            param1->nflimit_max = (-1 * pHddCtx->cfg_ini->nflimit_max2g_etsi);
+        }
+        else
+        {
+            param1->nflimit_max = (-1 * pHddCtx->cfg_ini->nflimit_max2g);
+        }
+        param1->is2GHz= 1;
+        msg.type = WDA_NFLIMIT_SET_CMD;
+        msg.reserved = 0;
+        msg.bodyptr = (void *)param1;
+        if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA,
+                                                      &msg)) {
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: "
+                     "Not able to post wda_cli_set_cmd message to WDA",
+                     __func__);
+           vos_mem_free(param1);
+           ret = -EIO;
+        }
+    }
+    if (pHddCtx->cfg_ini->nflimit_max5g || (is_etsi_country && pHddCtx->cfg_ini->nflimit_max5g_etsi)) {
+        wmi_nflimit_cmd_fixed_param *param2 = (wmi_nflimit_cmd_fixed_param *)vos_mem_malloc(
+                                sizeof(wmi_nflimit_cmd_fixed_param));
+        if (NULL == param2) {
+           hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_mem_alloc failed", __func__);
+           return;
+        }
+        vos_mem_zero((void *)param2, sizeof(wmi_nflimit_cmd_fixed_param));
+        if(is_etsi_country) {
+            param2->nflimit_max = (-1 * pHddCtx->cfg_ini->nflimit_max5g_etsi);
+        }
+        else
+        {
+            param2->nflimit_max = (-1 * pHddCtx->cfg_ini->nflimit_max5g);
+        }
+        param2->is2GHz= 0;
+        msg.type = WDA_NFLIMIT_SET_CMD;
+        msg.reserved = 0;
+        msg.bodyptr = (void *)param2;
+        if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA,
+                                                      &msg)) {
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: "
+                     "Not able to post wda_cli_set_cmd message to WDA",
+                     __func__);
+           vos_mem_free(param2);
+           ret = -EIO;
+        }
+    }
+    return;
+}
+
+void wlan_hdd_set_thresh62(hdd_context_t *pHddCtx)
+{
+    int ret = 0;
+    vos_msg_t msg = {0};
+    int is_etsi_country = 0;
+
+    is_etsi_country = check_country_code_etsi(pHddCtx);
+
+    if (pHddCtx->cfg_ini->thresh62_2g  || (is_etsi_country && pHddCtx->cfg_ini->thresh62_2g_etsi)) {
+        wmi_thresh62_fixed_param *param1 = (wmi_thresh62_fixed_param *)vos_mem_malloc(
+                                sizeof(wmi_thresh62_fixed_param));
+        if (NULL == param1) {
+           hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_mem_alloc failed", __func__);
+           return;
+        }
+        vos_mem_zero((void *)param1, sizeof(wmi_thresh62_fixed_param));
+        if(is_etsi_country) {
+            param1->thresh62_val = pHddCtx->cfg_ini->thresh62_2g_etsi;
+        }
+        else
+        {
+            param1->thresh62_val = pHddCtx->cfg_ini->thresh62_2g;
+        }
+        param1->is2GHz= 1;
+        msg.type = WDA_SET_THRESH62_CMD;
+        msg.reserved = 0;
+        msg.bodyptr = (void *)param1;
+        if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA,
+                                                      &msg)) {
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: "
+                     "Not able to post wda_cli_set_cmd message to WDA",
+                     __func__);
+           vos_mem_free(param1);
+           ret = -EIO;
+        }
+    }
+    if (pHddCtx->cfg_ini->thresh62_5g || (is_etsi_country && pHddCtx->cfg_ini->thresh62_5g_etsi)) {
+        wmi_thresh62_fixed_param *param2 = (wmi_thresh62_fixed_param *)vos_mem_malloc(
+                                sizeof(wmi_thresh62_fixed_param));
+        if (NULL == param2) {
+           hddLog(VOS_TRACE_LEVEL_FATAL, "%s: vos_mem_alloc failed", __func__);
+           return;
+        }
+        vos_mem_zero((void *)param2, sizeof(wmi_thresh62_fixed_param));
+        if(is_etsi_country) {
+            param2->thresh62_val = pHddCtx->cfg_ini->thresh62_5g_etsi;
+        }
+        else
+        {
+            param2->thresh62_val = pHddCtx->cfg_ini->thresh62_5g;
+        }
+        param2->is2GHz= 0;
+        msg.type = WDA_SET_THRESH62_CMD;
+        msg.reserved = 0;
+        msg.bodyptr = (void *)param2;
+        if (VOS_STATUS_SUCCESS != vos_mq_post_message(VOS_MODULE_ID_WDA,
+                                                      &msg)) {
+           VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR, "%s: "
+                     "Not able to post wda_cli_set_cmd message to WDA",
+                     __func__);
+           vos_mem_free(param2);
+           ret = -EIO;
+        }
+    }
+    return;
+}
+#endif
+
+
 hdd_adapter_t *hdd_open_adapter(hdd_context_t *hdd_ctx,
 				uint8_t session_type,
 				const char *iface_name,
@@ -12408,6 +12583,11 @@ hdd_adapter_t *hdd_open_adapter(hdd_context_t *hdd_ctx,
 			wlan_hdd_restart_sap(ap_adapter);
 		}
 	}
+#endif
+
+#if 1
+      wlan_hdd_set_nflimit(hdd_ctx);
+      wlan_hdd_set_thresh62(hdd_ctx);
 #endif
 
 	if ((vos_get_conparam() != VOS_FTM_MODE) &&
@@ -17983,6 +18163,9 @@ int hdd_wlan_startup(struct device *dev, v_VOID_t *hif_sc)
        hddLog(VOS_TRACE_LEVEL_ERROR,
                "%s: Error while initializing Runtime DPD Recaliberation information", __func__);
    }
+
+   sme_set_dfs_csr_callback(pHddCtx->hHal,
+                      (tSmeSetCsrBlockTxCallback)hdd_set_dfs_csr_block_tx);
 
    /* Plug in set thermal level callback */
    sme_add_set_thermal_level_callback(pHddCtx->hHal,

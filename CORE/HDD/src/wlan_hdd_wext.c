@@ -4182,7 +4182,34 @@ VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode)
        }
    }
 
+#if 1
+/* save ps mode for reconnction by silex */
+   pHddCtx->cfg_ini->ps_usr_setting = mode;
+#endif
+
    return VOS_STATUS_SUCCESS;
+}
+
+VOS_STATUS  wlan_hdd_get_powersave(hdd_adapter_t *pAdapter, bool *mode)
+{
+    tpAniSirGlobal pMac;
+    tpPsOffloadPerSessionInfo pmc;
+    if (NULL == pAdapter)
+    {
+       hddLog(VOS_TRACE_LEVEL_FATAL, "Adapter NULL");
+       return VOS_STATUS_E_FAULT;
+    }
+
+    pMac = PMAC_STRUCT( WLAN_HDD_GET_HAL_CTX(pAdapter) );
+    pmc = &pMac->pmcOffloadInfo.pmc[pAdapter->sessionId];
+
+    if(pmc->configStaPsEnabled == FALSE)
+       *mode = false;
+    else
+       *mode = true;
+
+
+    return VOS_STATUS_SUCCESS;
 }
 
 VOS_STATUS wlan_hdd_exit_lowpower(hdd_context_t *pHddCtx,

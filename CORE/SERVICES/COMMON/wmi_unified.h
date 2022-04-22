@@ -1004,6 +1004,13 @@ typedef enum {
     /* invoke neighbor report from FW */
     WMI_11K_INVOKE_NEIGHBOR_REPORT_CMDID,
 
+#if 1
+    /* custom noise floor limit max value */
+    WMI_SET_NFLIMIT_MAX_CMDID,
+    /* custom thresh62 value */
+    WMI_SET_THRESH62_CMDID,
+#endif
+
     /* GPIO Configuration */
     WMI_GPIO_CONFIG_CMDID=WMI_CMD_GRP_START_ID(WMI_GRP_GPIO),
     WMI_GPIO_OUTPUT_CMDID,
@@ -4946,6 +4953,19 @@ typedef struct {
     A_UINT32 value;
 }wmi_echo_cmd_fixed_param;
 
+#if 1
+typedef struct {
+    A_UINT32 tlv_header;     /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_echo_cmd_fixed_param */
+    A_INT16 nflimit_max;
+    A_UCHAR is2GHz;
+} wmi_nflimit_cmd_fixed_param;
+
+typedef struct {
+    A_UINT32 tlv_header;     /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_echo_cmd_fixed_param */
+    A_INT16 thresh62_val;
+    A_UCHAR is2GHz;
+} wmi_thresh62_fixed_param;
+#endif
 
 typedef struct {
     A_UINT32 tlv_header;     /* TLV tag and len; tag equals WMITLV_TAG_STRUC_wmi_pdev_set_regdomain_cmd_fixed_param */
@@ -6160,6 +6180,9 @@ typedef enum {
      * 4 - 31 | Reserved
      */
     WMI_PDEV_PARAM_SET_CMD_OBSS_PD_PER_AC,
+
+    /* silex specific WMI parameters from 0x400 */
+    WMI_PDEV_PARAM_BANGRADAR   = 0x400,
 
 } WMI_PDEV_PARAM;
 

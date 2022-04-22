@@ -235,6 +235,11 @@ limCollectBssDescription(tpAniSirGlobal pMac,
     tANI_U8             rxChannel;
     tANI_U8             rfBand = 0;
 
+#ifndef NO_SILEX_CHANGED
+    if (pBPR->beaconInterval >= 2048)
+	return;
+#endif
+
     pHdr = WDA_GET_RX_MAC_HEADER(pRxPacketInfo);
 
     if (SIR_MAC_B_PR_SSID_OFFSET > WDA_GET_RX_PAYLOAD_LEN(pRxPacketInfo))

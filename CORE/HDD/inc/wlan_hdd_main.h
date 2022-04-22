@@ -2194,6 +2194,7 @@ struct hdd_context_s
 #endif
     adf_os_spinlock_t restrict_offchan_lock;
     bool  restrict_offchan_flag;
+    bool dfs_csr_block_tx;
 
 };
 
@@ -2309,7 +2310,9 @@ void hdd_set_ssr_required(e_hdd_ssr_required value);
 
 VOS_STATUS hdd_enable_bmps_imps(hdd_context_t *pHddCtx);
 VOS_STATUS hdd_disable_bmps_imps(hdd_context_t *pHddCtx, tANI_U8 session_type);
-
+#if 0 /* silex : not used, because now set dtim policy in WMA.*/
+void wlan_hdd_set_dtim_policy(hdd_context_t *pHddCtx);
+#endif
 /**
  * hdd_thermal_suspend_queue_work() - Queue a thermal suspend work
  * @hdd_ctx:     Pointer to hdd_context_t

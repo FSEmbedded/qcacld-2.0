@@ -504,7 +504,7 @@ vos_sched_open
 {
   VOS_STATUS  vStatus = VOS_STATUS_SUCCESS;
 #ifdef CONFIG_PERF_NON_QC_PLATFORM
-  struct sched_param param = {.sched_priority = 99};
+  struct sched_param param  __attribute__((unused))= {.sched_priority = 99};
 #endif
 /*-------------------------------------------------------------------------*/
   VOS_TRACE(VOS_MODULE_ID_VOSS, VOS_TRACE_LEVEL_INFO_HIGH,

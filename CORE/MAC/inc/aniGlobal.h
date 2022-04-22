@@ -1129,6 +1129,8 @@ typedef struct sMacOpenParameters
     tANI_U32 ucTxPartitionBase;
 #endif /* IPA_UC_OFFLOAD */
 
+    tANI_U8 staDTIMPolicy;
+
     bool      tx_chain_mask_cck;
     uint16_t  self_gen_frm_pwr;
 #ifdef WLAN_FEATURE_LPSS

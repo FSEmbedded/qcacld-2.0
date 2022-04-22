@@ -867,6 +867,7 @@ typedef struct wma_handle {
 #endif
         u_int8_t ibss_started;
         tSetBssKeyParams ibsskey_info;
+	u_int32_t cash_def_key_idx;
 
    /*DFS umac interface information*/
    struct ieee80211com *dfs_ic;
@@ -922,6 +923,7 @@ typedef struct wma_handle {
 	u_int8_t staMaxLIModDtim;
 	u_int8_t staModDtim;
 	u_int8_t staDynamicDtim;
+	BEACON_DTIM_POLICY dtim_policy;
 
 	u_int8_t enable_mhf_offload;
 	/* timestamp when last entries where set */

@@ -517,6 +517,11 @@ int __hdd_hard_start_xmit(struct sk_buff *skb, struct net_device *dev)
        goto drop_list;
    }
 
+   if (hddCtxt->dfs_csr_block_tx) {
+        hddLog(LOGW, FL("dfs channel swich inprogress,drop"));
+        goto drop_list;
+   }
+
    while (skb) {
        skb_next = skb->next;
        /* memset skb control block */
@@ -1471,6 +1476,7 @@ VOS_STATUS hdd_rx_packet_cbk(v_VOID_t *vosContext,
    while (NULL != skb) {
       skb_next = skb->next;
 
+#if 0
       if (((pHddStaCtx->conn_info.proxyARPService) &&
          cfg80211_is_gratuitous_arp_unsolicited_na(skb)) ||
          vos_is_load_unload_in_progress(VOS_MODULE_ID_VOSS, NULL)) {
@@ -1483,6 +1489,7 @@ VOS_STATUS hdd_rx_packet_cbk(v_VOID_t *vosContext,
             skb = skb_next;
             continue;
       }
+#endif
 
       DPTRACE(adf_dp_trace(skb,
               ADF_DP_TRACE_RX_HDD_PACKET_PTR_RECORD,
@@ -1527,6 +1534,7 @@ VOS_STATUS hdd_rx_packet_cbk(v_VOID_t *vosContext,
 #endif /* QCA_PKT_PROTO_TRACE */
 
       skb->dev = pAdapter->dev;
+      pAdapter->stats.rx_bytes += skb->len;
       skb->protocol = eth_type_trans(skb, skb->dev);
 
       /* Check & drop mcast packets (for IPV6) as required */
@@ -1544,7 +1552,6 @@ VOS_STATUS hdd_rx_packet_cbk(v_VOID_t *vosContext,
 
       ++pAdapter->hdd_stats.hddTxRxStats.rxPackets[cpu_index];
       ++pAdapter->stats.rx_packets;
-      pAdapter->stats.rx_bytes += skb->len;
 
       /**
        * Remove SKB from internal tracking table before submitting it

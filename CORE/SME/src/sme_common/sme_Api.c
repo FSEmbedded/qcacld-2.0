@@ -2462,6 +2462,7 @@ eHalStatus sme_UnprotectedMgmtFrmInd( tHalHandle hHal,
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 	roam_info->nFrameLength = pSmeMgmtFrm->frameLen;
 	roam_info->pbFrames = pSmeMgmtFrm->frameBuf;
 	roam_info->frameType = pSmeMgmtFrm->frameType;
@@ -2494,6 +2495,7 @@ eHalStatus dfsMsgProcessor(tpAniSirGlobal pMac, v_U16_t msgType, void *pMsgBuf)
     roam_info = vos_mem_malloc(sizeof(*roam_info));
     if (!roam_info)
         return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 
     switch (msgType)
     {
@@ -2596,6 +2598,7 @@ static eHalStatus sme_extended_change_channel_ind(tpAniSirGlobal mac_ctx,
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 	session_id = ext_chan_ind->session_id;
 	roam_info->target_channel = ext_chan_ind->new_channel;
 	roamStatus = eCSR_ROAM_EXT_CHG_CHNL_IND;
@@ -2628,6 +2631,7 @@ eHalStatus sme_TsmIeInd(tHalHandle hHal, tSirSmeTsmIEInd *pSmeTsmIeInd)
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 	roam_info->tsmIe.tsid= pSmeTsmIeInd->tsmIe.tsid;
 	roam_info->tsmIe.state= pSmeTsmIeInd->tsmIe.state;
 	roam_info->tsmIe.msmt_interval= pSmeTsmIeInd->tsmIe.msmt_interval;
@@ -15561,6 +15565,15 @@ eHalStatus sme_InitDPDRecalInfo( tHalHandle hHal,
     }
     vos_mem_free(pWdaParam);
     return eHAL_STATUS_FAILURE;
+}
+
+void sme_set_dfs_csr_callback(tHalHandle hHal,
+                   tSmeSetCsrBlockTxCallback cb)
+{
+    tpAniSirGlobal pMac = PMAC_STRUCT(hHal);
+
+    pMac->sme.set_dfs_csr_block_tx= cb;
+    pMac->sme.is_dfs_csr_inprogress = false;
 }
 
 /*

@@ -4636,6 +4636,10 @@ VOS_STATUS sme_set_btc_coex_dutycycle(uint32_t coex_btc_PauseDuration,uint32_t c
 
 uint8_t    sme_is_any_session_in_connected_state(tHalHandle h_hal);
 
+typedef void (*tSmeSetCsrBlockTxCallback)(void *pContext, bool val);
+void sme_set_dfs_csr_callback(tHalHandle hHal,
+                   tSmeSetCsrBlockTxCallback cb);
+
 typedef void ( *tSmeSetThermalLevelCallback)(void *pContext, u_int8_t level);
 void sme_add_set_thermal_level_callback(tHalHandle hHal,
                    tSmeSetThermalLevelCallback callback);

@@ -483,6 +483,7 @@ static void wma_beacon_miss_handler(tp_wma_handle wma, u_int32_t vdev_id,
 				    uint32_t rssi);
 static void wma_set_suspend_dtim(tp_wma_handle wma);
 static void wma_set_resume_dtim(tp_wma_handle wma);
+void wma_set_dtim_policy(tp_wma_handle wma, uint8_t val);
 static int wma_roam_event_callback(WMA_HANDLE handle, u_int8_t *event_buf,
 				u_int32_t len);
 static VOS_STATUS wma_stop_scan(tp_wma_handle wma_handle,
@@ -712,6 +713,7 @@ static tANI_U8 wma_get_mcs_idx(tANI_U16 maxRate, tANI_U8 rate_flags,
 
 	*mcsRateFlag = rate_flags;
 	*mcsRateFlag &= ~eHAL_TX_RATE_SGI;
+	*mcsRateFlag &= ~eHAL_TX_RATE_SGI_BY_SILEX;
 
 #ifdef WLAN_FEATURE_11AC
 	for (curIdx = 0; curIdx < MAX_VHT_MCS_IDX; curIdx++) {
@@ -735,6 +737,7 @@ static tANI_U8 wma_get_mcs_idx(tANI_U16 maxRate, tANI_U8 rate_flags,
 					vht_mcs_nss2[curIdx].ht40_rate[1]);
 			if (cur_rate) {
 				*mcsRateFlag &= ~eHAL_TX_RATE_VHT80;
+				*mcsRateFlag |= eHAL_TX_RATE_VHT40;
 				goto rate_found;
 			}
 		}
@@ -750,6 +753,7 @@ static tANI_U8 wma_get_mcs_idx(tANI_U16 maxRate, tANI_U8 rate_flags,
 			if (cur_rate) {
 				*mcsRateFlag &= ~(eHAL_TX_RATE_VHT80 |
 						eHAL_TX_RATE_VHT40);
+				*mcsRateFlag |= eHAL_TX_RATE_VHT20;
 				goto rate_found;
 			}
 		}
@@ -785,8 +789,10 @@ static tANI_U8 wma_get_mcs_idx(tANI_U16 maxRate, tANI_U8 rate_flags,
 
 rate_found:
 	/* set SGI flag only if this is SGI rate */
-	if (cur_rate && is_sgi == true)
+	if (cur_rate && is_sgi == true) {
 		*mcsRateFlag |= eHAL_TX_RATE_SGI;
+		*mcsRateFlag |= eHAL_TX_RATE_SGI_BY_SILEX;
+	}
 
 	WMA_LOGD("%s - cur_rate: %d index: %d rate_flag: 0x%x is_sgi: %d",
 		__func__, cur_rate, curIdx, *mcsRateFlag, is_sgi);
@@ -2837,8 +2843,25 @@ static void wma_update_peer_stats(tp_wma_handle wma, wmi_peer_stats *peer_stats)
 			/*The linkspeed returned by fw is in kbps so convert
 			 *it in to units of 500kbps which is expected by UMAC*/
 			if (peer_stats->peer_tx_rate) {
+#ifdef NO_SILEX_CHANGE
 				classa_stats->tx_rate =
 					peer_stats->peer_tx_rate/500;
+#else
+				/* avoid the rounding */
+				classa_stats->tx_rate =
+					peer_stats->peer_tx_rate/100;
+
+				/* isSGI? 1:SGI 0:LGI */
+				if (peer_stats->peer_tx_rate & 1) {
+					node->rate_flags |= eHAL_TX_RATE_SGI_BY_SILEX;
+					node->rate_flags |= eHAL_TX_RATE_SGI;
+				} else {
+					if (node->rate_flags & eHAL_TX_RATE_SGI)
+						node->rate_flags ^= eHAL_TX_RATE_SGI;
+					if (node->rate_flags & eHAL_TX_RATE_SGI_BY_SILEX)
+						node->rate_flags ^= eHAL_TX_RATE_SGI_BY_SILEX;
+				}
+#endif /* NO_SILEX_CHANGE */
 			}
 
 			classa_stats->tx_rate_flags = node->rate_flags;
@@ -5464,10 +5487,8 @@ static int wma_unified_link_radio_stats_event_handler(void *handle,
 		 * events may be spoofed. Drop all of them and report error.
 		 */
 		WMA_LOGE("Invalid following WMI_RADIO_LINK_STATS_EVENTID. Discarding this set");
-		rs_results->tx_time_per_power_level = NULL;
 		vos_mem_free(wma_handle->link_stats_results);
 		wma_handle->link_stats_results = NULL;
-		vos_mem_free(rs_results->tx_time_per_power_level);
 		return -EINVAL;
 	}
 
@@ -9782,6 +9803,8 @@ VOS_STATUS WDA_open(v_VOID_t *vos_context, v_VOID_t *os_ctx,
 	wma_handle->staModDtim = mac_params->staModDtim;
 	wma_handle->staDynamicDtim = mac_params->staDynamicDtim;
 
+	wma_handle->dtim_policy = mac_params->staDTIMPolicy;
+
 	/*
 	 * Value of mac_params->wowEnable can be,
 	 * 0 - Disable both magic pattern match and pattern byte match.
@@ -12259,6 +12282,71 @@ static VOS_STATUS wma_capture_tsf(tp_wma_handle wma_handle, uint32_t vdev_id)
 static VOS_STATUS wma_reset_tsf_gpio(tp_wma_handle wma_handle, uint32_t vdev_id)
 {
     return VOS_STATUS_SUCCESS;
+}
+#endif
+
+#if 1
+VOS_STATUS wma_nflimit_send(tp_wma_handle wma_handle, wmi_nflimit_cmd_fixed_param *param)
+{
+    VOS_STATUS vos_status = VOS_STATUS_SUCCESS;
+    wmi_buf_t buf;
+    wmi_nflimit_cmd_fixed_param *cmd;
+    int status = 0;
+    u_int16_t len = sizeof(*cmd);
+    buf = wmi_buf_alloc(wma_handle->wmi_handle, len);
+    if (NULL == buf) {
+        WMA_LOGE("Failed to allocate memory");
+        vos_status = VOS_STATUS_E_NOMEM;
+        goto end;
+    }
+    cmd = (wmi_nflimit_cmd_fixed_param *)wmi_buf_data(buf);
+    cmd->nflimit_max = param->nflimit_max;
+    cmd->is2GHz = param->is2GHz;
+    WMITLV_SET_HDR(&cmd->tlv_header,
+        WMI_SET_NFLIMIT_MAX_CMDID_wmi_nflimit_cmd_fixed_param,
+        WMITLV_GET_STRUCT_TLVLEN(wmi_nflimit_cmd_fixed_param));
+    status = wmi_unified_cmd_send(wma_handle->wmi_handle, buf,
+            len, WMI_SET_NFLIMIT_MAX_CMDID);
+    /* Call the wmi api to request the scan */
+    if (status != EOK) {
+        vos_status = VOS_STATUS_E_FAILURE;
+        WMA_LOGE("Failed to send nfLimit");
+        wmi_buf_free(buf);
+    }
+end:
+    return vos_status;
+}
+
+VOS_STATUS wma_thresh62_send(tp_wma_handle wma_handle, wmi_thresh62_fixed_param *param)
+{
+    VOS_STATUS vos_status = VOS_STATUS_SUCCESS;
+    wmi_buf_t buf;
+    wmi_thresh62_fixed_param *cmd;
+    int status = 0;
+    u_int16_t len = sizeof(*cmd);
+    printk("%s\n",__func__);/*Debug*/
+    buf = wmi_buf_alloc(wma_handle->wmi_handle, len);
+    if (NULL == buf) {
+        WMA_LOGE("Failed to allocate memory");
+        vos_status = VOS_STATUS_E_NOMEM;
+        goto end;
+    }
+    cmd = (wmi_thresh62_fixed_param *)wmi_buf_data(buf);
+    cmd->thresh62_val = param->thresh62_val;
+    cmd->is2GHz = param->is2GHz;
+    WMITLV_SET_HDR(&cmd->tlv_header,
+        WMI_SET_THRESH62_CMDID_wmi_thresh62_fixed_param,
+        WMITLV_GET_STRUCT_TLVLEN(wmi_thresh62_fixed_param));
+    status = wmi_unified_cmd_send(wma_handle->wmi_handle, buf,
+            len, WMI_SET_THRESH62_CMDID);
+    /* Call the wmi api to request the scan */
+    if (status != EOK) {
+        vos_status = VOS_STATUS_E_FAILURE;
+        WMA_LOGE("Failed to send thresh62");
+        wmi_buf_free(buf);
+    }
+end:
+    return vos_status;
 }
 #endif
 
@@ -18157,7 +18245,14 @@ static void wma_process_cli_set_cmd(tp_wma_handle wma,
 			}
 			break;
 #endif /* FEATURE_GREEN_AP */
-
+        case WMI_PDEV_PARAM_BANGRADAR:
+            {
+                struct ath_dfs *dfs = (struct ath_dfs *)wma->dfs_ic->ic_dfs;
+                dfs->dfs_bangradar = 1;
+                dfs->ath_radar_tasksched = 1;
+                OS_SET_TIMER(&dfs->ath_dfs_task_timer, 0);
+            }
+            break;
 		default:
 			WMA_LOGE("Invalid param id 0x%x", privcmd->param_id);
 			break;
@@ -19427,9 +19522,9 @@ void wma_set_bss_rate_flags(struct wma_txrx_node *iface,
 
 #ifdef WLAN_FEATURE_11AC
 	if (add_bss->vhtCapable) {
-		if (add_bss->vhtTxChannelWidthSet)
+		if (add_bss->vhtTxChannelWidthSet && add_bss->currentExtChannel >=PHY_QUADRUPLE_CHANNEL_20MHZ_LOW_40MHZ_CENTERED)
 			iface->rate_flags |= eHAL_TX_RATE_VHT80;
-		else if (add_bss->txChannelWidthSet)
+		else if (add_bss->txChannelWidthSet && add_bss->currentExtChannel != PHY_SINGLE_CHANNEL_CENTERED)
 			iface->rate_flags |= eHAL_TX_RATE_VHT40;
 		else
 			iface->rate_flags |= eHAL_TX_RATE_VHT20;
@@ -19438,7 +19533,7 @@ void wma_set_bss_rate_flags(struct wma_txrx_node *iface,
 	else
 #endif
 	if (add_bss->htCapable) {
-		if (add_bss->txChannelWidthSet)
+		if (add_bss->txChannelWidthSet && add_bss->currentExtChannel != PHY_SINGLE_CHANNEL_CENTERED)
 			iface->rate_flags |= eHAL_TX_RATE_HT40;
 		else
 			iface->rate_flags |= eHAL_TX_RATE_HT20;
@@ -19447,6 +19542,13 @@ void wma_set_bss_rate_flags(struct wma_txrx_node *iface,
 	if (add_bss->staContext.fShortGI20Mhz ||
 		add_bss->staContext.fShortGI40Mhz)
 		iface->rate_flags |= eHAL_TX_RATE_SGI;
+
+#ifndef NO_SILEX_CHANGE
+	if (((iface->rate_flags & eHAL_TX_RATE_HT20 || iface->rate_flags & eHAL_TX_RATE_VHT20) && add_bss->staContext.fShortGI20Mhz) ||
+		((iface->rate_flags & eHAL_TX_RATE_HT40 || iface->rate_flags & eHAL_TX_RATE_VHT40) && add_bss->staContext.fShortGI40Mhz)) {
+		iface->rate_flags |= eHAL_TX_RATE_SGI_BY_SILEX;
+	}
+#endif
 
 	if (!add_bss->htCapable && !add_bss->vhtCapable)
 		iface->rate_flags = eHAL_TX_RATE_LEGACY;
@@ -19559,6 +19661,8 @@ static void wma_add_bss_sta_mode(tp_wma_handle wma, tpAddBssParams add_bss)
 			req.chan = add_bss->currentOperChannel;
 			req.chan_offset = add_bss->currentExtChannel;
 			req.channelwidth = add_bss->channelwidth;
+			req.vht_capable = add_bss->vhtCapable;
+			req.dot11_mode = add_bss->dot11_mode;
 
 			if (add_bss->channelwidth == CH_WIDTH_5MHZ)
 				req.is_quarter_rate = 1;
@@ -20857,6 +20961,33 @@ static wmi_buf_t wma_setup_install_key_cmd(tp_wma_handle wma_handle,
 	return buf;
 }
 
+/* silex added */
+static void wma_set_stakey_helper(tp_wma_handle wma_handle, struct wma_set_key_params key_params, u_int32_t def_key_idx, ol_txrx_vdev_handle txrx_vdev)
+{
+	wmi_buf_t buf;
+	int32_t status;
+	u_int32_t len = 0;
+
+	WMA_LOGD("BSS key setup for peer");
+
+	key_params.unicast = TRUE;
+	key_params.def_key_idx = def_key_idx;
+
+	buf = wma_setup_install_key_cmd(wma_handle, &key_params, &len, txrx_vdev->opmode);
+
+	if (!buf) {
+		WMA_LOGE("%s:Failed to setup install key buf", __func__);
+		return;
+	}
+
+	status = wmi_unified_cmd_send(wma_handle->wmi_handle, buf, len,
+									WMI_VDEV_INSTALL_KEY_CMDID);
+	if (status) {
+		adf_nbuf_free(buf);
+		WMA_LOGE("%s:Failed to send install key command", __func__);
+	}
+}
+
 static void wma_set_bsskey(tp_wma_handle wma_handle, tpSetBssKeyParams key_info)
 {
 	struct wma_set_key_params key_params;
@@ -20963,6 +21094,16 @@ static void wma_set_bsskey(tp_wma_handle wma_handle, tpSetBssKeyParams key_info)
 		}
 	}
 
+	if ( (txrx_vdev->opmode == wlan_op_mode_sta) &&
+		 (key_info->encType == eSIR_ED_WEP40 ||
+		  key_info->encType == eSIR_ED_WEP104) 
+	   )
+	{
+        /* In order not to set default key data because it is already set. */
+		if(wma_handle->cash_def_key_idx != key_params.key_idx){
+		    wma_set_stakey_helper(wma_handle, key_params, wma_handle->cash_def_key_idx, txrx_vdev);
+		}
+	}
         wma_handle->ibss_started++;
 	/* TODO: Should we wait till we get HTT_T2H_MSG_TYPE_SEC_IND? */
 	key_info->status = eHAL_STATUS_SUCCESS;
@@ -21160,6 +21301,12 @@ static void wma_set_stakey(tp_wma_handle wma_handle, tpSetStaKeyParams key_info)
         */
         if (wlan_op_mode_ibss == txrx_vdev->opmode){
            wma_set_ibsskey_helper(wma_handle, &wma_handle->ibsskey_info, key_info->peerMacAddr);
+        }
+        else if ( (txrx_vdev->opmode == wlan_op_mode_sta) &&
+                  (key_info->encType == eSIR_ED_WEP40 || key_info->encType == eSIR_ED_WEP104)){
+           WMA_LOGD("%s:cashed default key idx:%d", __func__,key_info->defWEPIdx);
+           wma_handle->cash_def_key_idx = key_info->defWEPIdx;
+           /* Delete the WEP key temporaly when this path passes twice. */
         }
 
 	/* TODO: Should we wait till we get HTT_T2H_MSG_TYPE_SEC_IND? */
@@ -22858,6 +23005,7 @@ static void wma_enable_sta_ps_mode(tp_wma_handle wma, tpEnablePsParams ps_req)
 	ps_req->status = VOS_STATUS_SUCCESS;
 	iface->dtimPeriod = ps_req->bcnDtimPeriod;
 	iface->in_bmps = true;
+	wma_set_dtim_policy(wma, 0);
 resp:
 	wma_send_msg(wma, WDA_ENTER_BMPS_RSP, ps_req, 0);
 }
@@ -22900,6 +23048,7 @@ static void wma_disable_sta_ps_mode(tp_wma_handle wma, tpDisablePsParams ps_req)
 
         ps_req->status = VOS_STATUS_SUCCESS;
 	iface->in_bmps = false;
+	wma_set_dtim_policy(wma, STICK_DTIM);
 resp:
         wma_send_msg(wma, WDA_EXIT_BMPS_RSP, ps_req, 0);
 }
@@ -36122,6 +36271,19 @@ VOS_STATUS wma_mc_process_msg(v_VOID_t *vos_context, vos_msg_t *msg)
 			vos_mem_free(msg->bodyptr);
 			break;
 #endif
+		case WDA_WLAN_DTIM_POLICY:
+			wma_set_dtim_policy(wma_handle, msg->bodyval);
+			break;
+#if 1
+		case WDA_NFLIMIT_SET_CMD:
+			wma_nflimit_send(wma_handle,
+						  (wmi_nflimit_cmd_fixed_param *)msg->bodyptr);
+            break;
+		case WDA_SET_THRESH62_CMD:
+			wma_thresh62_send(wma_handle,
+						  (wmi_thresh62_fixed_param *)msg->bodyptr);
+            break;
+#endif
 		default:
 			WMA_LOGD("unknow msg type %x", msg->type);
 			/* Do Nothing? MSG Body should be freed at here */
@@ -39204,6 +39366,9 @@ v_VOID_t wma_rx_ready_event(WMA_HANDLE handle, void *cmd_param_info)
 	tp_wma_handle wma_handle = (tp_wma_handle) handle;
 	WMI_READY_EVENTID_param_tlvs *param_buf = NULL;
 	wmi_ready_event_fixed_param  *ev = NULL;
+	void *hdd_ctx = vos_get_context(VOS_MODULE_ID_HDD,
+					wma_handle->vos_context);
+	int ret;
 
 	WMA_LOGD("%s: Enter", __func__);
 
@@ -39271,6 +39436,12 @@ v_VOID_t wma_rx_ready_event(WMA_HANDLE handle, void *cmd_param_info)
 
 	wma_update_hdd_cfg(wma_handle);
 
+	ret = wmi_unified_pdev_set_param(wma_handle->wmi_handle,
+                                     WMI_SET_ANTENNA_DIVERSITY_CMDID,
+                                     (u_int32_t)vos_get_antenna_setting(hdd_ctx));
+	if (ret) {
+		WMA_LOGD("wmi_unified_vdev_set_param_send failed ret %d", ret);
+	}
 	vos_event_set(&wma_handle->wma_ready_event);
 
 	WMA_LOGD("Exit");
@@ -40711,6 +40882,8 @@ void wma_send_regdomain_info(u_int32_t reg_dmn, u_int16_t regdmn2G,
 	int32_t cck_mask_val = 0;
 	int ret = 0;
 
+        WMA_LOGE("reg dmn info: 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", reg_dmn, regdmn2G, regdmn5G, ctl2G, ctl5G);
+
 	if (NULL == wma) {
 		WMA_LOGE("%s: wma context is NULL", __func__);
 		return;
@@ -41678,8 +41851,9 @@ int wma_dfs_indicate_radar(struct ieee80211com *ic,
 	if (!pmac->sap.SapDfsInfo.disable_dfs_ch_switch)
 		wma->dfs_ic->disable_phy_err_processing = true;
 
-	if ((ichan->ic_ieee  != (wma->dfs_ic->last_radar_found_chan)) ||
-	    ( pmac->sap.SapDfsInfo.disable_dfs_ch_switch == VOS_TRUE) )
+	if (((ichan->ic_ieee  != (wma->dfs_ic->last_radar_found_chan)) ||
+	    ( pmac->sap.SapDfsInfo.disable_dfs_ch_switch == VOS_TRUE) ) &&
+        (!pmac->sap.SapDfsInfo.dfs_full))
 	{
 		radar_event = (struct wma_dfs_radar_indication *)
 			vos_mem_malloc(sizeof(*radar_event));
@@ -42190,6 +42364,47 @@ static void wma_set_resume_dtim(tp_wma_handle wma)
 			wma_set_vdev_resume_dtim(wma, i);
 		}
 	}
+}
+
+static void wma_set_vdev_dtim_policy(tp_wma_handle wma, v_U8_t vdev_id, uint8_t dtim_policy)
+{
+	struct wma_txrx_node *iface = &wma->interfaces[vdev_id];
+	BEACON_DTIM_POLICY dtim_p = wma->dtim_policy;
+	int32_t ret;
+
+	if (dtim_policy) {
+		/* Set dtim policy by Powersave Enabled/Disabled */
+		dtim_p = dtim_policy;
+	}
+
+	ret = wmi_unified_vdev_set_param_send(wma->wmi_handle, vdev_id,
+						WMI_VDEV_PARAM_DTIM_POLICY ,
+						dtim_p);
+	if (ret) {
+		/* Set it to Normal DTIM */
+		WMA_LOGE("Failed to Set to DTIM Policy(%d) vdevId %d", dtim_p, vdev_id);
+	}
+
+	iface->dtim_policy = dtim_p;
+	WMA_LOGD("Set DTIM Policy to Dtim Policy(%d) vdevId %d", dtim_p, vdev_id);
+}
+
+void wma_set_dtim_policy(tp_wma_handle wma, uint8_t val)
+{
+	u_int8_t i;
+
+	if (NULL == wma) {
+		WMA_LOGE("%s: wma is NULL", __func__);
+		return;
+	}
+
+	for (i = 0; i < wma->max_bssid; i++) {
+		if (wma->interfaces[i].handle) {
+			wma_set_vdev_dtim_policy(wma, i, val);
+		}
+	}
+
+	return;
 }
 
 #ifdef WLAN_FEATURE_ROAM_OFFLOAD

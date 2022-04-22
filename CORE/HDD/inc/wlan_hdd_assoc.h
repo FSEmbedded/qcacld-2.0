@@ -129,6 +129,13 @@ struct hdd_conn_flag {
 #define ANTENNA_SEL_INFO_TX_SOUNDING_PPDU	0x40
 #define ANTENNA_SEL_INFO_RSVD			0x80
 
+/* First octet of HT Operation Information within HT Operation element */
+#define HT_INFO_HT_PARAM_SECONDARY_CHNL_OFF_MASK	((u8) BIT(0) | BIT(1))
+#define HT_INFO_HT_PARAM_SECONDARY_CHNL_ABOVE		((u8) BIT(0))
+#define HT_INFO_HT_PARAM_SECONDARY_CHNL_BELOW		((u8) BIT(0) | BIT(1))
+#define HT_INFO_HT_PARAM_STA_CHNL_WIDTH		((u8) BIT(2))
+#define HT_INFO_HT_PARAM_RIFS_MODE			((u8) BIT(3))
+
 /**
  * struct rate_info - bitrate information
  *
@@ -299,5 +306,9 @@ VOS_STATUS hdd_roamDeregisterSTA(hdd_adapter_t *adapter, uint8_t sta_id);
  * Return: hdd adpater for which connection is in progress
  */
 hdd_adapter_t *hdd_get_sta_connection_in_progress(hdd_context_t *hdd_ctx);
+
+VOS_STATUS hdd_chan_switch_notify_for_sta(hdd_adapter_t *pAdapter,
+		struct net_device *dev,
+		tCsrRoamInfo *roam_info);
 
 #endif

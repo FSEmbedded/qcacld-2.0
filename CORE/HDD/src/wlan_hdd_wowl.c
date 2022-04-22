@@ -608,6 +608,8 @@ v_BOOL_t hdd_init_wowl (hdd_adapter_t*pAdapter)
   pHddCtx = pAdapter->pHddCtx;
 
   memset(g_hdd_wowl_ptrns, 0, sizeof(g_hdd_wowl_ptrns));
+  if (pAdapter->device_mode == WLAN_HDD_P2P_DEVICE)
+    return VOS_TRUE;/* WOW is not needed for P2P_DEVICE. it does not make connection by self. */
 
   //Add any statically configured patterns
   hdd_add_wowl_ptrn(pAdapter, pHddCtx->cfg_ini->wowlPattern);

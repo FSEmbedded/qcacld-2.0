@@ -1028,6 +1028,55 @@ limProcessAssocRspFrame(tpAniSirGlobal pMac, tANI_U8 *pRxPacketInfo, tANI_U8 sub
         else
             psessionEntry->beaconParams.fShortPreamble = true;
     }
+
+    /* Check the Association Req/Rsp ChannelWidth of HT */
+    if (pAssocRsp->HTCaps.present)
+    {
+        if(pAssocRsp->HTCaps.supportedChannelWidthSet !=  pBeaconStruct->HTCaps.supportedChannelWidthSet)
+        {
+            if (!(psessionEntry->htSupportedChannelWidthSet== eHT_CHANNEL_WIDTH_20MHZ) &&
+                (pAssocRsp->HTCaps.supportedChannelWidthSet != psessionEntry->htSupportedChannelWidthSet))
+            {
+                /* silex modified
+                 * Send advisory Disassociation frame to AP
+                 * Re/Association response was received
+                 * with mismatch ht information
+                 */
+                PELOGE(limLog(pMac, LOGE, FL("received Re/AssocRsp frame with mismatch ht information"
+                              " disassoc sta %p"),pHdr->sa);)
+
+                mlmAssocCnf.resultCode = eSIR_SME_INVALID_ASSOC_RSP_RXED;
+                mlmAssocCnf.protStatusCode = eSIR_MAC_UNSPEC_FAILURE_STATUS;
+                limSendDisassocMgmtFrame(pMac, eSIR_MAC_UNSPEC_FAILURE_REASON,
+                                         pHdr->sa, psessionEntry, FALSE);
+
+                goto assocReject;
+            }
+        }
+    }
+
+   /* Check the Association Req/Rsp ChannelWidth of VHT*/
+   if ( pAssocRsp->VHTOperation.present )
+   {
+       if(pAssocRsp->VHTOperation.chanWidth != pBeaconStruct->VHTOperation.chanWidth)
+       {
+           /* Send advisory Disassociation frame to AP
+            * Re/Association response was received
+            * with mismatch Channel Width of vht.
+            */
+           PELOGE(limLog(pMac, LOGE, FL("received Re/AssocRsp frame with mismatch CW information of vh"
+                                        " disassoc sta %p"), pHdr->sa);)
+           mlmAssocCnf.resultCode = eSIR_SME_INVALID_ASSOC_RSP_RXED;
+           mlmAssocCnf.protStatusCode = eSIR_MAC_UNSPEC_FAILURE_STATUS;
+
+           // Send advisory Disassociation frame to AP
+           limSendDisassocMgmtFrame(pMac, eSIR_MAC_UNSPEC_FAILURE_REASON,
+                                    pHdr->sa, psessionEntry, FALSE);
+
+           goto assocReject;
+       }
+   }
+
 #ifdef FEATURE_WLAN_DIAG_SUPPORT
     limDiagEventReport(pMac, WLAN_PE_DIAG_CONNECTED, psessionEntry,
                        eSIR_SUCCESS, eSIR_SUCCESS);

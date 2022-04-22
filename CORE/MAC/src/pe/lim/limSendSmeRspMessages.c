@@ -3032,6 +3032,9 @@ void limHandleCSAoffloadMsg(tpAniSirGlobal pMac,tpSirMsgQ MsgQ)
       psessionEntry->gLimChannelSwitch.primaryChannel = csa_params->channel;
       psessionEntry->gLimChannelSwitch.state = eLIM_CHANNEL_SWITCH_PRIMARY_ONLY;
       psessionEntry->gLimChannelSwitch.secondarySubBand = PHY_SINGLE_CHANNEL_CENTERED;
+      pMac->sme.is_dfs_csr_inprogress = true;
+      if (pMac->sme.set_dfs_csr_block_tx)
+          pMac->sme.set_dfs_csr_block_tx(pMac->hHdd, true);
 
 #ifdef WLAN_FEATURE_11AC
       if(psessionEntry->vhtCapability)

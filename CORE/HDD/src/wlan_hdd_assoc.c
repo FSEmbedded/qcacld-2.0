@@ -146,6 +146,44 @@ static const int beacon_filter_table[] = {
 #endif
 };
 
+struct convert_vht_seg_table {
+	int center_freq;
+	int vht_oper_seg1;
+};
+
+static const struct convert_vht_seg_table g_vht_seg_table[] = {
+	{5180, 5210},    /* 36ch */
+	{5200, 5210},    /* 40ch */
+	{5220, 5210},    /* 44ch */
+	{5240, 5210},    /* 48ch */
+
+	{5260, 5290},    /* 52ch */
+	{5280, 5290},    /* 56ch */
+	{5300, 5290},    /* 60ch */
+	{5320, 5290},    /* 64ch */
+
+	{5500, 5530},    /* 100ch */
+	{5520, 5530},    /* 104ch */
+	{5540, 5530},    /* 108ch */
+	{5560, 5530},    /* 112ch */
+
+	{5580, 5610},    /* 116ch */
+	{5600, 5610},    /* 120ch */
+	{5620, 5610},    /* 124ch */
+	{5640, 5610},    /* 128ch */
+
+	{5660, 5690},    /* 132ch */
+	{5680, 5690},    /* 136ch */
+	{5700, 5690},    /* 140ch */
+	//{5720, 5690},    /* 144ch */
+
+	{5745, 5775},    /* 149ch */
+	{5765, 5775},    /* 153ch */
+	{5785, 5775},    /* 157ch */
+	{5805, 5775},    /* 161ch */
+	{0, 0},         /* end */
+};
+
 static eHalStatus hdd_RoamSetKeyCompleteHandler( hdd_adapter_t *pAdapter,
                                                 tCsrRoamInfo *pRoamInfo,
                                                 tANI_U32 roamId,
@@ -201,6 +239,37 @@ static void wlan_hdd_sae_callback(hdd_adapter_t *adapter,
 				tCsrRoamInfo *roam_info)
 { }
 #endif
+
+static void wlan_hdd_channel_sw_callback(hdd_adapter_t *pAdapter,
+                                         tCsrRoamInfo *roam_info)
+{
+    tCsrRoamConnectedProfile roamProfile;
+    struct net_device *dev = pAdapter->dev;
+    tHalHandle hHal = WLAN_HDD_GET_HAL_CTX(pAdapter);
+    struct cfg80211_bss *bss = NULL;
+
+    memset(&roamProfile, 0, sizeof(tCsrRoamConnectedProfile));
+    sme_RoamGetConnectProfile(hHal, pAdapter->sessionId, &roamProfile);
+
+    if (NULL != roamProfile.pBssDesc) {
+        hddLog(LOG1, "CSA: new channel=%u", roamProfile.pBssDesc->channelId);
+        bss = wlan_hdd_cfg80211_update_channel_sw(pAdapter, roamProfile.pBssDesc);
+        if (NULL == bss) {
+            hddLog(LOGE, "CSA: channel update failure...");
+        }
+        else {
+            hddLog(LOG1, "CSA: channel update success!");
+        }
+        sme_RoamFreeConnectProfile(hHal, &roamProfile);
+    }
+    else{
+        hddLog(LOGE, "CSA: pBssDesc not found...");
+    }
+
+    /* update for apps */
+    hddLog(LOGE, "%s(%d): hdd_chan_switch_notify_for_sta", __func__, __LINE__);
+    hdd_chan_switch_notify_for_sta(pAdapter, dev, roam_info);
+}
 
 static v_VOID_t
 hdd_connSetAuthenticated(hdd_adapter_t *pAdapter, v_U8_t authState)
@@ -1194,6 +1263,146 @@ static void hdd_SendNewAPChannelInfo(struct net_device *dev, hdd_adapter_t *pAda
 }
 
 #endif /* FEATURE_WLAN_ESE */
+
+static int calc_vht_oper_seg1(int center_freq)
+{
+	int i;
+
+	for (i = 0; g_vht_seg_table[i].center_freq != 0; i++) {
+		if (g_vht_seg_table[i].center_freq == center_freq) {
+			VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+				"%s: found seg1=%u center_freq=%u",
+				__func__, g_vht_seg_table[i].vht_oper_seg1, center_freq);
+			return g_vht_seg_table[i].vht_oper_seg1;
+		}
+	}
+	VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+		"%s: not found seg1, return center_freq=%u as HT20",
+		__func__, center_freq);
+
+	return center_freq;
+}
+
+static void
+hdd_update_chandef_vht80_for_sta(hdd_adapter_t *pAdapter,
+		struct cfg80211_chan_def *chandef,
+		struct ieee80211_channel *chan,
+		u8   vht_channel_width)
+{
+
+	VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+		"ch_width %u", vht_channel_width);
+
+	switch (vht_channel_width) {
+	case 0: /* 20 or 40MHz */
+		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+			"vht ch_width %u, will be 20 or 40MHz", vht_channel_width);
+		break;
+
+	case 1: /* 80MHz */
+		chandef->width = NL80211_CHAN_WIDTH_80;
+		chandef->center_freq1 = calc_vht_oper_seg1(chan->center_freq);
+		chandef->center_freq2 = 0;
+		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+				"%s: width=%u freq1=%u freq2=%u",
+				__func__, chandef->width, chandef->center_freq1, chandef->center_freq2);
+		break;
+
+	case 2: /* 160MHz */
+	case 3: /* 80+80MHz */
+	default:
+		/* Todo, please add related codes if support 160MHZ or others */
+		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+			"unsupport vht ch_width %u", vht_channel_width);
+		break;
+	}
+}
+
+/**
+ * hdd_chan_switch_notify_for_sta() - Function to notify wpa_supplicant about channel change
+ * @pAdapter	sta adapter
+ * @dev:		Net device structure
+ * @roam_info:	Roaming Information
+ *
+ * Return: Success on intimating userspace
+ */
+VOS_STATUS hdd_chan_switch_notify_for_sta(hdd_adapter_t *pAdapter,
+		struct net_device *dev,
+		tCsrRoamInfo *roam_info)
+{
+	u8 oper_chan;
+	struct ieee80211_channel *chan;
+	struct cfg80211_chan_def chandef;
+	enum nl80211_channel_type channel_type;
+	eCsrCfgDot11Mode phy_mode;
+	struct ieee80211_ht_operation ht_oper;
+	uint32_t freq;
+	tHalHandle hal = WLAN_HDD_GET_HAL_CTX(pAdapter);
+	hdd_station_ctx_t *pHddStaCtx = WLAN_HDD_GET_STATION_CTX_PTR(pAdapter);
+
+	if (NULL == hal || NULL == pHddStaCtx || NULL == dev ||
+			NULL == roam_info || NULL == roam_info->pBssDesc) {
+		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+				"%s: NULL: hal=%p pHddStaCtx=%p dev=%p roam_info=%p pBssDesc=%p",
+				__func__, hal, pHddStaCtx, dev, roam_info, roam_info->pBssDesc);
+		return VOS_STATUS_E_FAILURE;
+	}
+
+	oper_chan = roam_info->pBssDesc->channelId;
+	freq = vos_chan_to_freq(oper_chan);
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0))
+	chan = ieee80211_get_channel(pAdapter->wdev.wiphy, freq);
+#else
+	chan = __ieee80211_get_channel(pAdapter->wdev.wiphy, freq);
+#endif
+	if (!chan) {
+		VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+				"%s: Invalid input frequency for channel conversion",
+				 __func__);
+		return VOS_STATUS_E_FAILURE;
+	}
+	chandef.chan = chan;
+
+	phy_mode = pHddStaCtx->conn_info.dot11Mode;
+	ht_oper = pHddStaCtx->conn_info.ht_operation;
+
+	VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
+			"%s: phy_mode=%u ht_param=0x%x\n", __func__, phy_mode, ht_oper.ht_param);
+
+	switch (phy_mode) {
+	case eCSR_CFG_DOT11_MODE_11N:
+	case eCSR_CFG_DOT11_MODE_11N_ONLY:
+	case eCSR_CFG_DOT11_MODE_11AC:
+	case eCSR_CFG_DOT11_MODE_11AC_ONLY:
+		if (ht_oper.ht_param & HT_INFO_HT_PARAM_STA_CHNL_WIDTH) {
+			int sec = ht_oper.ht_param & HT_INFO_HT_PARAM_SECONDARY_CHNL_OFF_MASK;
+			if (sec == HT_INFO_HT_PARAM_SECONDARY_CHNL_ABOVE)
+				 channel_type = NL80211_CHAN_HT40PLUS;
+			else if (sec == HT_INFO_HT_PARAM_SECONDARY_CHNL_BELOW)
+				channel_type = NL80211_CHAN_HT40MINUS;
+			else
+				channel_type = NL80211_CHAN_HT40PLUS;
+		}
+		else
+			channel_type = NL80211_CHAN_HT20;
+		break;
+	default:
+		channel_type = NL80211_CHAN_NO_HT;
+		break;
+	}
+
+	cfg80211_chandef_create(&chandef, chan, channel_type);
+
+	if ((phy_mode == eCSR_CFG_DOT11_MODE_11AC) ||
+	    (phy_mode == eCSR_CFG_DOT11_MODE_11AC_ONLY))
+		hdd_update_chandef_vht80_for_sta(pAdapter, &chandef,
+						chan, pHddStaCtx->conn_info.vht_operation.chan_width);
+
+	cfg80211_ch_switch_notify(dev, &chandef);
+
+	return VOS_STATUS_SUCCESS;
+}
 
 static void
 hdd_SendUpdateBeaconIEsEvent(hdd_adapter_t *pAdapter,
@@ -2886,6 +3095,12 @@ static eHalStatus hdd_AssociationCompletionHandler( hdd_adapter_t *pAdapter, tCs
                     "Cannot register STA with TL.  Failed with vosStatus = %d [%08X]",
                     vosStatus, vosStatus );
         }
+
+#if 0 /* silex : not used, because now set dtim policy in WMA.*/
+        /* set DTIM Policy from qcom_cfg.ini */
+        wlan_hdd_set_dtim_policy(pHddCtx);
+#endif
+
 #ifdef WLAN_FEATURE_11W
         vos_mem_zero( &pAdapter->hdd_stats.hddPmfStats,
                       sizeof(pAdapter->hdd_stats.hddPmfStats) );
@@ -4831,7 +5046,8 @@ hdd_smeRoamCallback(void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U32 roamId,
             VOS_TRACE(VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_INFO,
                     "****eCSR_ROAM_ASSOCIATION_COMPLETION****");
             // To Do - address probable memory leak with WEP encryption upon successful association
-            if (eCSR_ROAM_RESULT_ASSOCIATED != roamResult)
+            /* Don't delete roamInfo which is being used because it can be Roaming now if result is ROAM_RESULT_FAILURE. */
+            if (eCSR_ROAM_RESULT_ASSOCIATED != roamResult && eCSR_ROAM_RESULT_FAILURE != roamResult)
             {
                //Clear saved connection information in HDD
                hdd_connRemoveConnectInfo( WLAN_HDD_GET_STATION_CTX_PTR(pAdapter) );
@@ -4889,6 +5105,32 @@ hdd_smeRoamCallback(void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U32 roamId,
                                          eSME_FULL_PWR_NEEDED_BY_HDD);
                     }
                 }
+
+#if 1
+/* silex add */
+				{
+				v_U8_t ps_mode = pHddCtx->cfg_ini->ps_usr_setting;
+
+				if(!pHddCtx->cfg_ini->enablePowersaveOffload)
+				{
+					/* skip */
+				}
+				else
+				{
+					if (ps_mode == DRIVER_POWER_MODE_AUTO) {
+						sme_PsOffloadEnablePowerSave(WLAN_HDD_GET_HAL_CTX(pAdapter),
+					                pAdapter->sessionId);
+					}
+					else
+					{
+						sme_PsOffloadDisablePowerSave(WLAN_HDD_GET_HAL_CTX(pAdapter),
+						            NULL, NULL,
+					                pAdapter->sessionId);
+					}
+				}
+				}
+#endif
+
                 if ((pHddCtx) &&
                     (FULL_POWER == pmcGetPmcState(pHddCtx->hHal)) &&
                     (VOS_TRUE == pHddStaCtx->hdd_ReassocScenario) &&
@@ -5045,7 +5287,11 @@ hdd_smeRoamCallback(void *pContext, tCsrRoamInfo *pRoamInfo, tANI_U32 roamId,
         case eCSR_ROAM_SAE_COMPUTE:
             if (pRoamInfo)
                 wlan_hdd_sae_callback(pAdapter, pRoamInfo);
-        break;
+            break;
+        case eCSR_ROAM_STA_CHANNEL_SW_RSP:
+            if (pRoamInfo)
+                wlan_hdd_channel_sw_callback(pAdapter, pRoamInfo);
+            break;
         default:
             break;
     }

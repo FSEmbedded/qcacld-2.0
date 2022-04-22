@@ -750,6 +750,7 @@ typedef struct sSapDfsInfo
     bool               dfs_beacon_tx_enhanced;
     uint16_t           reduced_beacon_interval;
     enum sub20_chan_switch_mode  sub20_switch_mode;
+    v_U8_t             dfs_full;
 #ifdef WLAN_FEATURE_SAP_TO_FOLLOW_STA_CHAN
     v_U8_t              csaSwitchCount;
 #endif

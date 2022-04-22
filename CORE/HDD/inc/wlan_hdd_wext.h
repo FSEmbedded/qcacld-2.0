@@ -471,6 +471,7 @@ int wlan_hdd_set_mc_addr_list(hdd_adapter_t *pAdapter, v_U8_t set);
 void* wlan_hdd_change_country_code_callback(void *pAdapter);
 
 VOS_STATUS  wlan_hdd_set_powersave(hdd_adapter_t *pAdapter, int mode);
+VOS_STATUS  wlan_hdd_get_powersave(hdd_adapter_t *pAdapter, bool *mode);
 
 /**
  * enum tdcc_cmd_type - type of TDCC commmand to process

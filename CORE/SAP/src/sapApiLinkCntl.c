@@ -767,7 +767,7 @@ WLANSAP_RoamCallback
                    pMac->sap.SapDfsInfo.user_provided_target_channel;
                pMac->sap.SapDfsInfo.user_provided_target_channel = 0;
            }
-
+#if 0 /* silex */
            if (pMac->sap.SapDfsInfo.target_channel == 0) {
                /* No available channel found */
                v_U8_t  intf;
@@ -795,7 +795,7 @@ WLANSAP_RoamCallback
                }
                break;
            }
-
+#endif
            pMac->sap.SapDfsInfo.cac_state = eSAP_DFS_DO_NOT_SKIP_CAC;
            sap_CacResetNotify(hHal);
 

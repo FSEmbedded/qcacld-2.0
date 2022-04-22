@@ -1552,7 +1552,7 @@ typedef enum
 #define CFG_REPORT_MAX_LINK_SPEED                  "gReportMaxLinkSpeed"
 #define CFG_REPORT_MAX_LINK_SPEED_MIN              ( eHDD_LINK_SPEED_REPORT_ACTUAL )
 #define CFG_REPORT_MAX_LINK_SPEED_MAX              ( eHDD_LINK_SPEED_REPORT_MAX_SCALED )
-#define CFG_REPORT_MAX_LINK_SPEED_DEFAULT          ( eHDD_LINK_SPEED_REPORT_MAX_SCALED )
+#define CFG_REPORT_MAX_LINK_SPEED_DEFAULT          ( eHDD_LINK_SPEED_REPORT_ACTUAL )
 
 #define CFG_SET_RTS_FOR_SIFS_BURSTING           "gSetRTSForSIFSBursting"
 #define CFG_SET_RTS_FOR_SIFS_BURSTING_MIN       (0)
@@ -2514,6 +2514,20 @@ typedef enum
 #define CFG_DPD_RECALIB_DURATION_MAX_DEFAULT   ( 120 )
 
 /*
+ * DTIM Policy
+ * Default: STICK
+ *
+ * IGNORE_DTIM = 0x01,
+ * NORMAL_DTIM = 0x02,
+ * STICK_DTIM  = 0x03,
+ * AUTO_DTIM   = 0x04,
+ */
+#define CFG_ENABLE_DTIM_POLICY_NAME          "gDTIMPolicy"
+#define CFG_ENABLE_DTIM_POLICY_MIN           ( 0 )
+#define CFG_ENABLE_DTIM_POLICY_MAX           ( 4 )
+#define CFG_ENABLE_DTIM_POLICY_DEFAULT       ( 4 )
+
+/*
  * Enable/Disable Modulated DTIM feature
  * Default: Disable
  */
@@ -3222,7 +3236,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_SAP_MAX_NO_PEERS                       "gSoftApMaxPeers"
 #define CFG_SAP_MAX_NO_PEERS_MIN                   (1)
 #define CFG_SAP_MAX_NO_PEERS_MAX                   (32)
-#define CFG_SAP_MAX_NO_PEERS_DEFAULT               (32)
+#define CFG_SAP_MAX_NO_PEERS_DEFAULT               (5)
 
 /*
  * Max peers number of P2P GO
@@ -3453,7 +3467,7 @@ This feature requires the dependent cfg.ini "gRoamPrefer5GHz" set to 1 */
 #define CFG_ROAMING_DFS_CHANNEL_ENABLED_ACTIVE     (2)
 #define CFG_ROAMING_DFS_CHANNEL_MIN                (CFG_ROAMING_DFS_CHANNEL_DISABLED)
 #define CFG_ROAMING_DFS_CHANNEL_MAX                (CFG_ROAMING_DFS_CHANNEL_ENABLED_ACTIVE)
-#define CFG_ROAMING_DFS_CHANNEL_DEFAULT            (CFG_ROAMING_DFS_CHANNEL_DISABLED)
+#define CFG_ROAMING_DFS_CHANNEL_DEFAULT            (CFG_ROAMING_DFS_CHANNEL_ENABLED_NORMAL)
 
 #ifdef FEATURE_BUS_BANDWIDTH
 #define CFG_BUS_BANDWIDTH_HIGH_THRESHOLD           "gBusBandwidthHighThreshold"
@@ -5647,6 +5661,49 @@ FG_BTC_BT_INTERVAL_PAGE_P2P_STA_DEFAULT
 #define CFG_HOST_LOG_CUSTOM_NETLINK_PROTO_MIN     (0)
 #define CFG_HOST_LOG_CUSTOM_NETLINK_PROTO_MAX     (32)
 #endif
+
+#if 1
+#define CFG_ENABLE_NFLIMIT2G_NAME                   "gNFlimit_max2g"
+#define CFG_ENABLE_NFLIMIT2G_MIN                    ( 0 )
+#define CFG_ENABLE_NFLIMIT2G_MAX                    ( 255 )
+#define CFG_ENABLE_NFLIMIT2G_DEFAULT                ( 0 )
+
+#define CFG_ENABLE_NFLIMIT5G_NAME                   "gNFlimit_max5g"
+#define CFG_ENABLE_NFLIMIT5G_MIN                    ( 0 )
+#define CFG_ENABLE_NFLIMIT5G_MAX                    ( 255 )
+#define CFG_ENABLE_NFLIMIT5G_DEFAULT                ( 0 )
+
+#define CFG_SET_THRESH62_2G_NAME                   "gthresh62_2g"
+#define CFG_SET_THRESH62_2G_MIN                    ( 0 )
+#define CFG_SET_THRESH62_2G_MAX                    ( 255 )
+#define CFG_SET_THRESH62_2G_DEFAULT                ( 0 )
+
+#define CFG_SET_THRESH62_5G_NAME                   "gthresh62_5g"
+#define CFG_SET_THRESH62_5G_MIN                    ( 0 )
+#define CFG_SET_THRESH62_5G_MAX                    ( 255 )
+#define CFG_SET_THRESH62_5G_DEFAULT                ( 0 )
+
+#define CFG_ENABLE_NFLIMIT2G_NAME_ETSI             "gNFlimit_max2g_etsi"
+#define CFG_ENABLE_NFLIMIT2G_MIN_ETSI              ( 0 )
+#define CFG_ENABLE_NFLIMIT2G_MAX_ETSI              ( 255 )
+#define CFG_ENABLE_NFLIMIT2G_DEFAULT_ETSI          ( 0 )
+
+#define CFG_ENABLE_NFLIMIT5G_NAME_ETSI             "gNFlimit_max5g_etsi"
+#define CFG_ENABLE_NFLIMIT5G_MIN_ETSI              ( 0 )
+#define CFG_ENABLE_NFLIMIT5G_MAX_ETSI              ( 255 )
+#define CFG_ENABLE_NFLIMIT5G_DEFAULT_ETSI          ( 96 )
+
+#define CFG_SET_THRESH62_2G_NAME_ETSI              "gthresh62_2g_etsi"
+#define CFG_SET_THRESH62_2G_MIN_ETSI               ( 0 )
+#define CFG_SET_THRESH62_2G_MAX_ETSI               ( 255 )
+#define CFG_SET_THRESH62_2G_DEFAULT_ETSI           ( 19 )
+
+#define CFG_SET_THRESH62_5G_NAME_ETSI              "gthresh62_5g_etsi"
+#define CFG_SET_THRESH62_5G_MIN_ETSI               ( 0 )
+#define CFG_SET_THRESH62_5G_MAX_ETSI               ( 255 )
+#define CFG_SET_THRESH62_5G_DEFAULT_ETSI           ( 16 )
+#endif
+
 /*---------------------------------------------------------------------------
   Type declarations
   -------------------------------------------------------------------------*/
@@ -5745,7 +5802,11 @@ struct hdd_config {
    v_U8_t        delay_before_vdev_stop;
    v_U8_t        nOpportunisticThresholdDiff;
    v_U8_t        nRoamRescanRssiDiff;
+#ifndef NO_SILEX_CHANGE
+   v_U8_t        neighborScanChanList[WNI_CFG_VALID_CHANNEL_LIST_LEN_FOR_QCOM_CFG_INI];
+#else /* NO_SILEX_CHANGE */
    v_U8_t        neighborScanChanList[WNI_CFG_VALID_CHANNEL_LIST_LEN];
+#endif /* NO_SILEX_CHANGE */
    v_U16_t       nNeighborScanMinChanTime;
    v_U16_t       nNeighborScanMaxChanTime;
    v_U16_t       nMaxNeighborReqTries;
@@ -6588,6 +6649,21 @@ struct hdd_config {
 
    uint32_t  mask_tx_legacy_rate;
    uint32_t  mask_tx_ht_rate;
+   /* silex */
+   uint8_t   dtim_policy;
+
+#if 1
+/* Added parameter by silex */
+   uint8_t                     ps_usr_setting;
+   uint16_t                    nflimit_max2g;
+   uint16_t                    nflimit_max5g;
+   uint16_t                    thresh62_2g;
+   uint16_t                    thresh62_5g;
+   uint16_t                    nflimit_max2g_etsi;
+   uint16_t                    nflimit_max5g_etsi;
+   uint16_t                    thresh62_2g_etsi;
+   uint16_t                    thresh62_5g_etsi;
+#endif
 };
 
 typedef struct hdd_config hdd_config_t;

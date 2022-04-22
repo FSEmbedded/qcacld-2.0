@@ -634,6 +634,7 @@ void sme_ndp_msg_processor(tpAniSirGlobal mac_ctx, vos_msg_t *msg)
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return;
+	vos_mem_zero(roam_info, sizeof(*roam_info));
 
 	switch (msg->type) {
 	case eWNI_SME_NDP_CONFIRM_IND: {

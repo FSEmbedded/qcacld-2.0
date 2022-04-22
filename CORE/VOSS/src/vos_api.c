@@ -620,6 +620,7 @@ VOS_STATUS vos_open( v_CONTEXT_t *pVosContext, v_SIZE_t hddContextSize )
    macOpenParms.staMaxLIModDtim = pHddCtx->cfg_ini->fMaxLIModulatedDTIM;
    macOpenParms.wowEnable          = pHddCtx->cfg_ini->wowEnable;
    macOpenParms.maxWoWFilters      = pHddCtx->cfg_ini->maxWoWFilters;
+   macOpenParms.staDTIMPolicy      = pHddCtx->cfg_ini->dtim_policy;
   /* Here olIniInfo is used to store ini status of arp offload
    * ns offload and others. Currently 1st bit is used for arp
    * off load and 2nd bit for ns offload currently, rest bits are unused
@@ -3604,5 +3605,11 @@ int qca_request_firmware(const struct firmware **firmware_p,
 #else
     return request_firmware(firmware_p, name,device);
 #endif
+}
+
+v_U32_t vos_get_antenna_setting(void *hdd_ctx)
+{
+    hdd_context_t *pHddCtx = (hdd_context_t *)hdd_ctx;
+    return pHddCtx->cfg_ini->antennaDiversity;
 }
 

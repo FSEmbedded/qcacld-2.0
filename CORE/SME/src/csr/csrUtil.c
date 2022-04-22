@@ -5734,6 +5734,15 @@ tANI_BOOLEAN csrMatchBSS( tHalHandle hHal, tSirBssDescription *pBssDesc, tCsrSca
             }
             if(!fCheck) break;
         }
+
+#ifndef NO_SILEX_CHANGE
+        /* If there is no SSID IE, treat it as "not matched". */
+        else
+        {
+            break;
+        }
+#endif /* NO_SILEX_CHANGE */
+
         fCheck = eANI_BOOLEAN_TRUE;
         for(i = 0; i < pFilter->BSSIDs.numOfBSSIDs; i++)
         {

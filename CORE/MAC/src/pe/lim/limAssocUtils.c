@@ -3949,11 +3949,13 @@ tSirRetStatus limStaSendAddBss( tpAniSirGlobal pMac, tpSirAssocRsp pAssocRsp,
     if (psessionEntry->vhtCapability && ( pAssocRsp->VHTCaps.present ))
     {
         pAddBssParams->vhtCapable = pAssocRsp->VHTCaps.present;
+#if 0 /* silex : currentExtChannel is set later by lim_update_vhtcaps_assoc_resp */
         pAddBssParams->currentExtChannel = limGet11ACPhyCBState ( pMac,
                                                                   pAddBssParams->currentOperChannel,
                                                                   pAddBssParams->currentExtChannel,
                                                                   psessionEntry->apCenterChan,
                                                                   psessionEntry);
+#endif
         vht_caps =  &pAssocRsp->VHTCaps;
         vht_oper = &pAssocRsp->VHTOperation;
     } else if (psessionEntry->vhtCapability &&

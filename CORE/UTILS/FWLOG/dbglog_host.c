@@ -4951,7 +4951,7 @@ int create_peer_cfr_debug_entry(tp_wma_handle wma, void *buf)
     debugfs_create_file(CFR_DEBUGFS_CAPT, 0644 , peer->cfr_peer_mac,
                         peer, &fops_cfr_capture);
 
-    AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("DEBUGFS PEER MAC = 0x%x:0x%x:0x%x:0x%x:0x%x:0x%x",
+    AR_DEBUG_PRINTF(ATH_DEBUG_INFO, ("DEBUGFS PEER MAC = 0x%x:0x%x:0x%x:0x%x:0x%x:0x%x\n",
                                       peer->mac_addr.raw[0], peer->mac_addr.raw[1],
                                       peer->mac_addr.raw[2], peer->mac_addr.raw[3],
                                       peer->mac_addr.raw[4], peer->mac_addr.raw[5]));

@@ -2645,6 +2645,10 @@ VOS_STATUS csrIsValidChannel(tpAniSirGlobal pMac, tANI_U8 chnNum)
           if ((dfsChan->dfs_channel_number == chnNum) &&
                 (dfsChan->radar_status_flag == eSAP_DFS_CHANNEL_UNAVAILABLE))
           {
+             if (pMac->sap.SapDfsInfo.dfs_full) {
+                 break;
+             }
+
              VOS_TRACE(VOS_MODULE_ID_SME, VOS_TRACE_LEVEL_ERROR,
                    FL("channel %d is in dfs nol"),
                    chnNum);
@@ -3484,6 +3488,11 @@ eHalStatus csrRoamIssueDeauth( tpAniSirGlobal pMac, tANI_U32 sessionId, eCsrRoam
         smsLog(pMac, LOGE, FL("csrSendMBDeauthReqMsg failed with status %d Session ID: %d"
                                 MAC_ADDRESS_STR ), status, sessionId, MAC_ADDR_ARRAY(bssId));
     }
+
+#if 1
+/* add for clearing connection profile by silex */
+    csrRoamLinkDown(pMac, sessionId);
+#endif
 
     return (status);
 }
@@ -4746,6 +4755,7 @@ eHalStatus csrRoamShouldRoam(tpAniSirGlobal pMac, tANI_U32 sessionId,
 	roam_info = vos_mem_malloc(sizeof(*roam_info));
 	if (!roam_info)
 		return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 	roam_info->pBssDesc = pBssDesc;
 	status = csrRoamCallCallback(pMac, sessionId, roam_info, roamId,
 				     eCSR_ROAM_SHOULD_ROAM,
@@ -4841,6 +4851,7 @@ static eCsrJoinState csrRoamJoinNextBss( tpAniSirGlobal pMac, tSmeCmd *pCommand,
         // Check for Cardbus eject condition, before trying to Roam to any BSS
         //***if( !balIsCardPresent(pAdapter) ) break;
 
+        vos_mem_zero(roam_info, sizeof(*roam_info));
         vos_mem_copy(roam_info->bssid, &pSession->joinFailStatusCode.bssId,
                      sizeof(tSirMacAddr));
         if(NULL != pBSSList)
@@ -8806,6 +8817,7 @@ void csrRoamReissueRoamCommand(tpAniSirGlobal pMac)
                 roam_info = vos_mem_malloc(sizeof(*roam_info));
                 if (!roam_info)
                     return;
+                vos_mem_zero(roam_info, sizeof(*roam_info));
                 roam_info->pBssDesc = pCommand->u.roamCmd.pLastRoamBss;
                 roam_info->statusCode = pSession->joinFailStatusCode.statusCode;
                 roam_info->reasonCode = pSession->joinFailStatusCode.reasonCode;
@@ -9294,6 +9306,7 @@ static void csrRoamRoamingStateReassocRspProcessor( tpAniSirGlobal pMac, tpSirSm
                     roam_info = vos_mem_malloc(sizeof(*roam_info));
                     if (!roam_info)
                         return;
+                    vos_mem_zero(roam_info, sizeof(*roam_info));
                     csrRoamCallCallback(pMac, pSmeJoinRsp->sessionId, roam_info,
                                         roam_id, eCSR_ROAM_FT_REASSOC_FAILED,
                                         eSIR_SME_SUCCESS);
@@ -9762,6 +9775,7 @@ void csrRoamingStateMsgProcessor( tpAniSirGlobal pMac, void *pMsgBuf )
             roam_info = vos_mem_malloc(sizeof(*roam_info));
             if (!roam_info)
                 break;
+            vos_mem_zero(roam_info, sizeof(*roam_info));
             roam_info->staId = (tANI_U8)pIbssPeerInd->staId;
             roam_info->ucastSig = (tANI_U8)pIbssPeerInd->ucastSig;
             roam_info->bcastSig = (tANI_U8)pIbssPeerInd->bcastSig;
@@ -9844,6 +9858,7 @@ void csrRoamJoinedStateMsgProcessor( tpAniSirGlobal pMac, void *pMsgBuf )
                     vos_mem_free(pUpperLayerAssocCnf->ies);
                 return;
             }
+            vos_mem_zero(roam_info, sizeof(*roam_info));
             roam_info->statusCode = eSIR_SME_SUCCESS; //send the status code as Success
             roam_info->u.pConnectedProfile = &pSession->connectedProfile;
             roam_info->staId = (tANI_U8)pUpperLayerAssocCnf->aid;
@@ -11344,6 +11359,19 @@ void csrRoamCheckForLinkStatusChange( tpAniSirGlobal pMac, tSirSmeRsp *pSirMsg )
                 {
                     pSession->pConnectBssDesc->channelId = (tANI_U8)pSwitchChnInd->newChannelId;
                 }
+
+                /* notify channel switch to kernel in case of STA */
+                if (CSR_IS_INFRASTRUCTURE(&pSession->connectedProfile) && pSession->pConnectBssDesc)
+                {
+                    pRoamInfo->pBssDesc = vos_mem_malloc(sizeof(tSirBssDescription));
+                    if (pRoamInfo->pBssDesc)
+                    {
+                        vos_mem_copy(pRoamInfo->pBssDesc, pSession->pConnectBssDesc, sizeof(tSirBssDescription));
+                        smsLog(pMac, LOGW, FL("channel switch callback: channel=%u"), pRoamInfo->pBssDesc->channelId);
+                        csrRoamCallCallback(pMac, sessionId, pRoamInfo, 0, eCSR_ROAM_STA_CHANNEL_SW_RSP, eCSR_ROAM_RESULT_NONE);
+                        vos_mem_free(pRoamInfo->pBssDesc);
+                    }
+                }
             }
             break;
 
@@ -12450,6 +12478,7 @@ eHalStatus csrRoamLostLink( tpAniSirGlobal pMac, tANI_U32 sessionId, tANI_U32 ty
     }
 
     //prepare to tell HDD to disconnect
+    vos_mem_zero(roam_info, sizeof(*roam_info));
     roam_info->statusCode = (tSirResultCodes)pSession->roamingStatusCode;
     roam_info->reasonCode = pSession->joinFailStatusCode.reasonCode;
     if( eWNI_SME_DISASSOC_IND == type)
@@ -16598,6 +16627,7 @@ static eHalStatus csrRoamSessionOpened(tpAniSirGlobal pMac, tANI_U32 sessionId)
     roam_info = vos_mem_malloc(sizeof(*roam_info));
     if (!roam_info)
         return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 
     status = csrRoamCallCallback(pMac, sessionId, roam_info, 0,
                             eCSR_ROAM_SESSION_OPENED, eCSR_ROAM_RESULT_NONE);
@@ -18020,12 +18050,6 @@ eHalStatus csrGetStatistics(tpAniSirGlobal pMac, eCsrStatsRequesterType requeste
    {
       //smsLog(pMac, LOGW, "csrGetStatistics: wrong state curState(%d) not connected", pMac->roam.curState);
       return eHAL_STATUS_FAILURE;
-   }
-
-   if (csrNeighborMiddleOfRoaming((tHalHandle)pMac, sessionId))
-   {
-       smsLog(pMac, LOG1, FL("in the middle of roaming states"));
-       return eHAL_STATUS_FAILURE;
    }
 
    if((!statsMask) && (!callback))

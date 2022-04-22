@@ -3220,7 +3220,11 @@ void pmcOffloadAutoPsEntryTimerExpired(void *pmcInfo)
 
     smsLog(pMac, LOG2, FL("Auto PS timer expired"));
 
-    if(eHAL_STATUS_FAILURE == pmcOffloadEnableStaPsHandler(pMac,
+    if(!pmc->configStaPsEnabled)
+    {
+        vos_timer_stop(&pmc->autoPsEnableTimer);
+    }
+    else if(eHAL_STATUS_FAILURE == pmcOffloadEnableStaPsHandler(pMac,
                                                 pmc->sessionId))
     {
         smsLog(pMac, LOGE, FL("Auto PS timer expired in wrong state"));

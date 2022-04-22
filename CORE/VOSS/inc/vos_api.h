@@ -447,4 +447,6 @@ int qca_request_firmware(const struct firmware **firmware_p,
                 const char *name,
                 struct device *device);
 
+v_U32_t vos_get_antenna_setting(void *hdd_ctx);
+
 #endif // if !defined __VOS_API_H

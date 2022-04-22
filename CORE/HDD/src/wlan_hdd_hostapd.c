@@ -2539,7 +2539,7 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                        FL("Sent CAC start to user space"));
             }
             pHddCtx->dfs_radar_found = VOS_FALSE;
-            break;
+            return VOS_STATUS_SUCCESS;
 
         case eSAP_DFS_CAC_INTERRUPTED:
             /*
@@ -2559,7 +2559,7 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                 hddLog(VOS_TRACE_LEVEL_INFO,
                     FL("Sent CAC end (interrupted) to user space"));
             }
-            break;
+            return VOS_STATUS_SUCCESS;
 
         case eSAP_DFS_CAC_END:
             wlan_hdd_send_svc_nlink_msg(pHddCtx->radio_index,
@@ -2576,7 +2576,7 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                 hddLog(VOS_TRACE_LEVEL_INFO,
                        FL("Sent CAC end to user space"));
             }
-            break;
+            return VOS_STATUS_SUCCESS;
 
         case eSAP_DFS_RADAR_DETECT:
             wlan_hdd_send_svc_nlink_msg(pHddCtx->radio_index,
@@ -2592,14 +2592,14 @@ VOS_STATUS hdd_hostapd_SAPEventCB( tpSap_Event pSapEvent, v_PVOID_t usrDataForCa
                 hddLog(VOS_TRACE_LEVEL_INFO,
                        FL("Sent radar detected to user space"));
             }
-            break;
+            return VOS_STATUS_SUCCESS;
 
         case eSAP_DFS_NO_AVAILABLE_CHANNEL:
             wlan_hdd_send_svc_nlink_msg(pHddCtx->radio_index,
                                         WLAN_SVC_DFS_ALL_CHANNEL_UNAVAIL_IND,
                                         &dfs_info,
                                         sizeof(dfs_info));
-            break;
+            return VOS_STATUS_SUCCESS;
 
         case eSAP_STA_SET_KEY_EVENT:
             /* TODO: forward the message to hostapd once implementation
@@ -4831,7 +4831,6 @@ static __iw_softap_setparam(struct net_device *dev,
                 ret = wlan_hdd_multicast_del_group(pHostapdAdapter,set_value);
                 break;
 #endif
-
         default:
             hddLog(LOGE, FL("Invalid setparam command %d value %d"),
                     sub_cmd, set_value);

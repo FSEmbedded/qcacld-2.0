@@ -809,7 +809,7 @@ static struct index_vht_data_rate_type supported_vht_mcs_rate_nss1[] =
    {6,  {2633, 2925}, {1215, 1350}, {585,  650}},
    {7,  {2925, 3250}, {1350, 1500}, {650,  722}},
    {8,  {3510, 3900}, {1620, 1800}, {780,  867}},
-   {9,  {3900, 4333}, {1800, 2000}, {780,  867}}
+   {9,  {3900, 4333}, {1800, 2000}, {3900,  4333/* no used mcs param */}}
 };
 
 /*MCS parameters with Nss = 2*/
@@ -21238,7 +21238,9 @@ static int __wlan_hdd_cfg80211_add_key( struct wiphy *wiphy,
 
         pWextState->roamProfile.Keys.KeyLength[key_index] = (u8)params->key_len;
 
+#if 0
         pWextState->roamProfile.Keys.defaultIndex = key_index;
+#endif
 
 
         vos_mem_copy(&pWextState->roamProfile.Keys.KeyMaterial[key_index][0],
@@ -22094,6 +22096,121 @@ int wlan_hdd_cfg80211_update_bss(struct wiphy *wiphy, hdd_adapter_t *pAdapter)
     EXIT();
     is_p2p_scan = false;
     return 0;
+}
+
+struct cfg80211_bss*
+wlan_hdd_cfg80211_update_channel_sw(hdd_adapter_t *pAdapter,
+                                    tSirBssDescription *bss_desc)
+{
+    struct net_device *dev = pAdapter->dev;
+    struct wireless_dev *wdev = dev->ieee80211_ptr;
+    struct wiphy *wiphy = wdev->wiphy;
+    int chan_no = bss_desc->channelId;
+#ifdef WLAN_ENABLE_AGEIE_ON_SCAN_RESULTS
+    qcom_ie_age *qie_age = NULL;
+    int ie_length = GET_IE_LEN_IN_BSS_DESC( bss_desc->length ) + sizeof(qcom_ie_age);
+#else
+    int ie_length = GET_IE_LEN_IN_BSS_DESC( bss_desc->length );
+#endif
+    const char *ie = ((ie_length != 0) ? (const char *)&bss_desc->ieFields: NULL);
+    unsigned int freq;
+    struct ieee80211_channel *chan;
+    struct ieee80211_mgmt *mgmt = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,7,0))
+    size_t frame_len = ie_length;
+#else
+    size_t frame_len = ie_length + offsetof(struct ieee80211_mgmt, u.probe_resp.variable);
+#endif
+    int rssi = 0;
+    hdd_context_t *pHddCtx;
+    int status;
+#ifdef CONFIG_CNSS
+    struct timespec ts;
+#endif
+    hdd_config_t *cfg_param = NULL;
+    struct cfg80211_inform_bss data = {0};
+    struct cfg80211_bss *bss = NULL;
+
+    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+    status = wlan_hdd_validate_context(pHddCtx);
+    if (0 != status)
+        return NULL;
+
+    cfg_param = pHddCtx->cfg_ini;
+    mgmt = kzalloc((sizeof (struct ieee80211_mgmt) + ie_length), GFP_KERNEL);
+    if (!mgmt) {
+        hddLog(LOGE, FL("memory allocation failed"));
+        return NULL;
+    }
+
+    memcpy(mgmt->bssid, bss_desc->bssId, ETH_ALEN);
+
+#ifdef CONFIG_CNSS
+    vos_get_monotonic_boottime_ts(&ts);
+    mgmt->u.probe_resp.timestamp = ((u64)ts.tv_sec * 1000000) + (ts.tv_nsec / 1000);
+#else
+    memcpy(&mgmt->u.probe_resp.timestamp, bss_desc->timeStamp, sizeof (bss_desc->timeStamp));
+#endif
+
+    mgmt->u.probe_resp.beacon_int = bss_desc->beaconInterval;
+    mgmt->u.probe_resp.capab_info = bss_desc->capabilityInfo;
+
+#ifdef WLAN_ENABLE_AGEIE_ON_SCAN_RESULTS
+    ie_length           -=sizeof(qcom_ie_age);
+    qie_age =  (qcom_ie_age *)(mgmt->u.probe_resp.variable + ie_length);
+    qie_age->element_id = QCOM_VENDOR_IE_ID;
+    qie_age->len        = QCOM_VENDOR_IE_AGE_LEN;
+    qie_age->oui_1      = QCOM_OUI1;
+    qie_age->oui_2      = QCOM_OUI2;
+    qie_age->oui_3      = QCOM_OUI3;
+    qie_age->type       = QCOM_VENDOR_IE_AGE_TYPE;
+    qie_age->age        = (vos_timer_get_system_time() - bss_desc->nReceivedTime)/10;
+    qie_age->tsf_delta  = bss_desc->tsf_delta;
+#endif
+
+    memcpy(mgmt->u.probe_resp.variable, ie, ie_length);
+    if (bss_desc->fProbeRsp)
+         mgmt->frame_control |= (u16)(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_PROBE_RESP);
+    else
+         mgmt->frame_control |= (u16)(IEEE80211_FTYPE_MGMT | IEEE80211_STYPE_BEACON);
+
+    if (chan_no <= ARRAY_SIZE(hdd_channels_2_4_GHZ) && (wiphy->bands[IEEE80211_BAND_2GHZ] != NULL)) {
+        freq = ieee80211_channel_to_frequency(chan_no, IEEE80211_BAND_2GHZ);
+    }
+    else if ((chan_no > ARRAY_SIZE(hdd_channels_2_4_GHZ)) && (wiphy->bands[IEEE80211_BAND_5GHZ] != NULL)) {
+        freq = ieee80211_channel_to_frequency(chan_no, IEEE80211_BAND_5GHZ);
+    }
+    else {
+        hddLog(LOGE, FL("Invalid chan_no %d"), chan_no);
+        kfree(mgmt);
+        return NULL;
+    }
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0))
+    chan = ieee80211_get_channel(wiphy, freq);
+#else
+    chan = __ieee80211_get_channel(wiphy, freq);
+#endif
+
+    if (chan == NULL) {
+        hddLog(LOGE, FL("chan pointer is NULL, chan_no: %d freq: %d"), chan_no, freq);
+        kfree(mgmt);
+        return NULL;
+    }
+
+    rssi = (cfg_param->inform_bss_rssi_raw) ? bss_desc->rssi_raw : bss_desc->rssi;
+    rssi = (VOS_MIN(rssi, 0)) * 100;
+
+    hddLog(LOG1, "BSSID: "MAC_ADDRESS_STR" Channel:%u RSSI:%d",
+           MAC_ADDR_ARRAY(mgmt->bssid), vos_freq_to_chan(chan->center_freq), (int)(rssi/100));
+
+    data.chan = chan;
+    data.boottime_ns = bss_desc->scansystimensec;
+    data.signal = rssi;
+
+    bss = cfg80211_channel_switch_update_channel(wiphy, &data, mgmt,
+                                                 frame_len, GFP_KERNEL);
+    kfree(mgmt);
+    return bss;
 }
 
 #define dump_pmkid(pMac, pmkid) \
@@ -27337,7 +27454,12 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
     rate_flags = pAdapter->hdd_stats.ClassA_stat.tx_rate_flags;
 
     //convert to the UI units of 100kbps
+#ifdef NO_SILEX_CHANGE
     myRate = pAdapter->hdd_stats.ClassA_stat.tx_rate * 5;
+#else
+    /* avoid the rounding */
+    myRate = pAdapter->hdd_stats.ClassA_stat.tx_rate * 1;
+#endif /* NO_SILEX_CHANGE */
     if (!(rate_flags & eHAL_TX_RATE_LEGACY)) {
         nss = pAdapter->hdd_stats.ClassA_stat.rx_frag_cnt;
 
@@ -27691,7 +27813,11 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
 #endif
                 }
             }
+#ifndef NO_SILEX_CHANGE
+            if (rate_flags & eHAL_TX_RATE_SGI_BY_SILEX)
+#else
             if (rate_flags & eHAL_TX_RATE_SGI)
+#endif
             {
                 if (!(sinfo->txrate.flags & RATE_INFO_FLAGS_VHT_MCS))
                     sinfo->txrate.flags |= RATE_INFO_FLAGS_MCS;
@@ -27740,6 +27866,14 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
                 sinfo->txrate.flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
 #endif
             }
+            else if (rate_flags & eHAL_TX_RATE_VHT20)
+            {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
+                sinfo->txrate.bw = RATE_INFO_BW_20;
+#else
+                sinfo->txrate.flags |= RATE_INFO_FLAGS_20_MHZ_WIDTH;
+#endif
+            }
 #endif /* WLAN_FEATURE_11AC */
             if (rate_flags & (eHAL_TX_RATE_HT20 | eHAL_TX_RATE_HT40))
             {
@@ -27752,10 +27886,22 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
                     sinfo->txrate.flags |= RATE_INFO_FLAGS_40_MHZ_WIDTH;
 #endif
                 }
+                else if (rate_flags & eHAL_TX_RATE_HT20)
+                {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
+                    sinfo->txrate.bw = RATE_INFO_BW_20;
+#endif
+                }
+
             }
+#ifndef NO_SILEX_CHANGE
+            if (rate_flags & eHAL_TX_RATE_SGI_BY_SILEX)
+#else
             if (rate_flags & eHAL_TX_RATE_SGI)
+#endif
             {
-                sinfo->txrate.flags |= RATE_INFO_FLAGS_MCS;
+                if (!(sinfo->txrate.flags & RATE_INFO_FLAGS_VHT_MCS))
+                    sinfo->txrate.flags |= RATE_INFO_FLAGS_MCS;
                 sinfo->txrate.flags |= RATE_INFO_FLAGS_SHORT_GI;
             }
 #ifdef LINKSPEED_DEBUG_ENABLED
@@ -27769,11 +27915,15 @@ static int __wlan_hdd_cfg80211_get_station(struct wiphy *wiphy,
 
     sinfo->tx_bytes = pAdapter->stats.tx_bytes;
 
+#ifndef NO_SILEX_CHANGED
+    sinfo->tx_packets = pAdapter->stats.tx_packets;
+#else
     sinfo->tx_packets =
        pAdapter->hdd_stats.summary_stat.tx_frm_cnt[0] +
        pAdapter->hdd_stats.summary_stat.tx_frm_cnt[1] +
        pAdapter->hdd_stats.summary_stat.tx_frm_cnt[2] +
        pAdapter->hdd_stats.summary_stat.tx_frm_cnt[3];
+#endif /* NO_SILEX_CHANGED */
 
     sinfo->tx_retries =
        pAdapter->hdd_stats.summary_stat.multiple_retry_cnt[0] +
@@ -28000,6 +28150,37 @@ static int wlan_hdd_cfg80211_set_power_mgmt(struct wiphy *wiphy,
     ret = __wlan_hdd_cfg80211_set_power_mgmt(wiphy, dev, mode, timeout);
     vos_ssr_unprotect(__func__);
 
+    return ret;
+}
+
+static int __wlan_hdd_cfg80211_get_power_mgmt(struct wiphy *wiphy,
+                     struct net_device *dev, bool *mode, int timeout)
+{
+    hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
+    hdd_context_t *pHddCtx;
+    VOS_STATUS vos_status;
+    int status;
+    ENTER();
+    pHddCtx = WLAN_HDD_GET_CTX(pAdapter);
+    status = wlan_hdd_validate_context(pHddCtx);
+    if (0 != status)
+    {
+        VOS_TRACE( VOS_MODULE_ID_HDD, VOS_TRACE_LEVEL_ERROR,
+                   "%s: HDD context is not valid", __func__);
+        return status;
+    }
+    vos_status =  wlan_hdd_get_powersave(pAdapter, mode);
+    EXIT();
+    return 1;
+}
+
+static int wlan_hdd_cfg80211_get_power_mgmt(struct wiphy *wiphy,
+                     struct net_device *dev, bool *mode, int timeout)
+{
+    int ret;
+    vos_ssr_protect(__func__);
+    ret = __wlan_hdd_cfg80211_get_power_mgmt(wiphy, dev, mode, timeout);
+    vos_ssr_unprotect(__func__);
     return ret;
 }
 
@@ -33444,6 +33625,28 @@ static void wlan_hdd_cfg80211_abort_scan(struct wiphy *wiphy,
 }
 #endif
 
+#if 1 /* silex add for test */
+static void __wlan_hdd_cfg80211_bangradar(struct wiphy *wiphy,
+                                           struct net_device *dev)
+{
+	int set_value = 1;
+	hdd_adapter_t *pAdapter = WLAN_HDD_GET_PRIV_PTR(dev);
+
+	process_wma_set_command((int)pAdapter->sessionId,
+								(int)WMI_PDEV_PARAM_BANGRADAR,
+								(int)set_value, DBG_CMD);
+
+	return;
+}
+
+static void wlan_hdd_cfg80211_bangradar(struct wiphy *wiphy,
+				struct net_device *dev)
+{
+	vos_ssr_protect(__func__);
+	__wlan_hdd_cfg80211_bangradar(wiphy, dev);
+	vos_ssr_unprotect(__func__);
+}
+#endif
 /* cfg80211_ops */
 static struct cfg80211_ops wlan_hdd_cfg80211_ops =
 {
@@ -33489,6 +33692,7 @@ static struct cfg80211_ops wlan_hdd_cfg80211_ops =
      .dump_station = wlan_hdd_cfg80211_dump_station,
      .get_station = wlan_hdd_cfg80211_get_station,
      .set_power_mgmt = wlan_hdd_cfg80211_set_power_mgmt,
+     .get_power_mgmt = wlan_hdd_cfg80211_get_power_mgmt,
      .del_station = wlan_hdd_cfg80211_del_station,
      .add_station = wlan_hdd_cfg80211_add_station,
 #ifdef FEATURE_WLAN_LFR
@@ -33534,4 +33738,5 @@ static struct cfg80211_ops wlan_hdd_cfg80211_ops =
     defined(CFG80211_EXTERNAL_AUTH_SUPPORT)
     .external_auth = wlan_hdd_cfg80211_external_auth,
 #endif
+	.bangradar = wlan_hdd_cfg80211_bangradar,
 };

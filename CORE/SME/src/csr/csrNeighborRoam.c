@@ -3361,10 +3361,11 @@ eHalStatus csrNeighborRoamPerformContiguousBgScan(tpAniSirGlobal pMac,
 {
     eHalStatus      status = eHAL_STATUS_SUCCESS;
     tCsrBGScanRequest   bgScanParams;
-    tANI_U8   numOfChannels = 0, i = 0;
+    tANI_U8   i = 0;
     tANI_U8   *channelList = NULL;
     tANI_U8   *pInChannelList = NULL;
-    tANI_U8   tmpChannelList[WNI_CFG_VALID_CHANNEL_LIST_LEN];
+    tANI_U8   tmpChannelList[WNI_CFG_VALID_CHANNEL_LIST_LEN]= {0,};
+    tANI_U32  numOfChannels = 0;
 
     vos_mem_set(&bgScanParams, sizeof(tCsrBGScanRequest), 0);
 
@@ -3375,7 +3376,7 @@ eHalStatus csrNeighborRoamPerformContiguousBgScan(tpAniSirGlobal pMac,
 
     if(!HAL_STATUS_SUCCESS(csrGetCfgValidChannels(pMac,
                           (tANI_U8 *)pMac->roam.validChannelList,
-                          (tANI_U32 *) &numOfChannels)))
+                          &numOfChannels)))
     {
         smsLog(pMac, LOGE, FL("Could not get valid channel list"));
         return eHAL_STATUS_FAILURE;
@@ -3390,7 +3391,7 @@ eHalStatus csrNeighborRoamPerformContiguousBgScan(tpAniSirGlobal pMac,
                              pInChannelList,
                              numOfChannels,
                              tmpChannelList,
-                             &numOfChannels);
+                             (tANI_U8 *)&numOfChannels);
         pInChannelList = tmpChannelList;
     }
 
@@ -4323,6 +4324,12 @@ VOS_STATUS csrNeighborRoamTransitToCFGChanScan(tpAniSirGlobal pMac,
     int       outputNumOfChannels = 0;
 
     currChannelListInfo = &pNeighborRoamInfo->roamChannelInfo.currentChannelListInfo;
+
+    if (sessionId>=CSR_ROAM_SESSION_MAX)
+    {
+        smsLog(pMac, LOGE, FL("Session ID is invalid(%d)"),sessionId);
+        return VOS_STATUS_E_INVAL;
+    }
 
     if (
 #ifdef FEATURE_WLAN_ESE

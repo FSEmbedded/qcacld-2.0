@@ -41,6 +41,9 @@
 #include <linux/jiffies.h>
 #include <linux/workqueue.h>
 #include <linux/sched.h>
+#ifdef HIF_PCI
+#include <linux/pci.h>
+#endif
 
 enum cnss_bus_width_type {
 	CNSS_BUS_WIDTH_NONE,

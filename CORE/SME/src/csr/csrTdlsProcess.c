@@ -698,6 +698,7 @@ eHalStatus tdlsMsgProcessor(tpAniSirGlobal pMac,  v_U16_t msgType,
     roam_info = vos_mem_malloc(sizeof(*roam_info));
     if (!roam_info)
         return eHAL_STATUS_FAILED_ALLOC;
+    vos_mem_zero(roam_info, sizeof(*roam_info));
 
     switch(msgType)
     {

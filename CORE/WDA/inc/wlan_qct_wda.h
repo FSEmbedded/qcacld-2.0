@@ -1069,6 +1069,10 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #endif /* FEATURE_AP_MCC_CH_AVOIDANCE */
 
 #define WDA_TSF_GPIO_PIN                      SIR_HAL_TSF_GPIO_PIN_REQ
+#if 1
+#define WDA_NFLIMIT_SET_CMD                   SIR_HAL_NFLIMIT_SET_CMD
+#define WDA_SET_THRESH62_CMD                  SIR_HAL_SET_THRESH62_CMD
+#endif
 #define WDA_SET_RSSI_MONITOR_REQ              SIR_HAL_SET_RSSI_MONITOR_REQ
 
 #define WDA_SET_IE_INFO                       SIR_HAL_SET_IE_INFO
@@ -1124,6 +1128,9 @@ tSirRetStatus uMacPostCtrlMsg(void* pSirGlobal, tSirMbMsg* pMb);
 #define WDA_ADD_MULTICAST_GROUP              SIR_HAL_ADD_MULTICAST_GROUP
 #define WDA_SET_MULTICAST_RATE              SIR_HAL_SET_MULTICAST_RATE
 #endif
+
+#define WDA_WLAN_DTIM_POLICY                  SIR_HAL_WLAN_DTIM_POLICY
+
 tSirRetStatus wdaPostCtrlMsg(tpAniSirGlobal pMac, tSirMsgQ *pMsg);
 
 #define HAL_USE_BD_RATE2_FOR_MANAGEMENT_FRAME 0x40 // Bit 6 will be used to control BD rate for Management frames
